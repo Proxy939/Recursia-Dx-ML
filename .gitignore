@@ -1,0 +1,77 @@
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Build
+/dist
+/build
+/.next
+/.vercel
+
+# Logs
+logs/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+
+# Coverage
+coverage/
+
+# Temp files
+*.swp
+*.bak
+*.tmp
+
+# Frontend
+client/node_modules/
+client/dist/
+
+# Backend
+backend/node_modules/
+backend/dist/
+backend/uploads/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+.venv/
+ENV/
+torch_env/
+
+# ML - DO NOT ignore model weights (.pth, .pt)
+# We want to push them for deployment
+*.h5
+*.onnx
+*.pkl
+*.pickle
+
+# ML Uploads and Runtime Data
+ml/uploads/
+ml/results/
+ml/logs/
+ml/data/
+ml/*.db
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
