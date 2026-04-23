@@ -108,7 +108,7 @@ export function ReportGeneration({ sample, onNext }) {
 
     setIsGeneratingSummary(true)
     try {
-      const response = await fetch(`http://localhost:5001/api/reports/generate-summary/${sample._id}`, {
+      const response = await fetch(`http://localhost:5000/api/reports/generate-summary/${sample._id}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       })
@@ -137,7 +137,7 @@ export function ReportGeneration({ sample, onNext }) {
     if (!sample?._id) return null
 
     try {
-      const response = await fetch(`http://localhost:5001/api/reports/generate-full/${sample._id}`, {
+      const response = await fetch(`http://localhost:5000/api/reports/generate-full/${sample._id}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       })
@@ -174,7 +174,7 @@ export function ReportGeneration({ sample, onNext }) {
     }, 300)
 
     try {
-      const response = await fetch(`http://localhost:5001/api/reports/generate/${sample._id}`, {
+      const response = await fetch(`http://localhost:5000/api/reports/generate/${sample._id}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -229,7 +229,7 @@ export function ReportGeneration({ sample, onNext }) {
         toast.info('Generating PDF report...')
         
         // Call backend PDF endpoint
-        const response = await fetch(`http://localhost:5001/api/reports/download-pdf/${sample._id}`)
+        const response = await fetch(`http://localhost:5000/api/reports/download-pdf/${sample._id}`)
         
         if (!response.ok) {
           throw new Error('Failed to generate PDF')
@@ -681,7 +681,7 @@ export function ReportGeneration({ sample, onNext }) {
                     variant="outline" 
                     onClick={() => {
                       // Update sample status in backend
-                      fetch(`http://localhost:5001/api/samples/${sample._id}/status`, {
+                      fetch(`http://localhost:5000/api/samples/${sample._id}/status`, {
                         method: 'PATCH',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ status: 'Completed' })
@@ -697,7 +697,7 @@ export function ReportGeneration({ sample, onNext }) {
                     size="lg"
                     onClick={() => {
                       // Update sample status
-                      fetch(`http://localhost:5001/api/samples/${sample._id}/status`, {
+                      fetch(`http://localhost:5000/api/samples/${sample._id}/status`, {
                         method: 'PATCH',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ status: 'Completed' })

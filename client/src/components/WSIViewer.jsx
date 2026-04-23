@@ -154,8 +154,8 @@ export function WSIViewer({ onNext, sample, onSampleUpdated }) {
       resolution: img.magnification || 'Unknown',
       size: `${Math.floor(Math.random() * 2048)}x${Math.floor(Math.random() * 1536)}`, // Mock size for now
       staining: img.staining || 'H&E',
-      thumbnail: `http://localhost:5001${img.url}`,
-      fullImage: `http://localhost:5001${img.url}`,
+      thumbnail: `http://localhost:5000${img.url}`,
+      fullImage: `http://localhost:5000${img.url}`,
       analysis: img.mlAnalysis ? 'completed' : 'pending',
       mlAnalysis: img.mlAnalysis,
       uploadedAt: img.uploadedAt
@@ -305,7 +305,7 @@ export function WSIViewer({ onNext, sample, onSampleUpdated }) {
       }
       
       // Call backend ML analysis endpoint
-      const response = await fetch('http://localhost:5001/api/samples/upload-with-analysis', {
+      const response = await fetch('http://localhost:5000/api/samples/upload-with-analysis', {
         method: 'POST',
         body: formData
       })

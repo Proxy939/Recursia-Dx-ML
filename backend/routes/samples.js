@@ -458,13 +458,26 @@ router.post('/upload-with-analysis',
               };
               console.log(`🩸 Blood analysis data structured for ${file.filename}:`, JSON.stringify(imageData.mlAnalysis, null, 2));
             } else {
-              // Tissue analysis - tumor detection
+              // Tissue analysis - tumor detection (4-class: glioma, meningioma, pituitary, notumor)
               const mapPrediction = (predicted_class) => {
-                switch (predicted_class) {
-                  case 'Non-Tumor': return 'benign';
-                  case 'Tumor': return 'malignant';
-                  default: return 'indeterminate';
-                }
+                if (!predicted_class) return 'indeterminate';
+                const cls = predicted_class.toLowerCase();
+                if (cls === 'notumor' || cls === 'no tumor' || cls === 'non-tumor') return 'benign';
+                if (['glioma', 'meningioma', 'pituitary', 'tumor'].includes(cls)) return 'malignant';
+                return 'indeterminate';
+              };
+
+              // Map tumor type for 4-class classification display
+              const mapTumorType = (predicted_class) => {
+                if (!predicted_class) return null;
+                const cls = predicted_class.toLowerCase();
+                const tumorTypes = {
+                  'glioma': { name: 'Glioma', description: 'A tumor arising from glial cells in the brain or spine', severity: 'High' },
+                  'meningioma': { name: 'Meningioma', description: 'A tumor arising from the meninges, the membranes surrounding the brain and spinal cord', severity: 'Moderate' },
+                  'pituitary': { name: 'Pituitary Tumor', description: 'An abnormal growth in the pituitary gland at the base of the brain', severity: 'Moderate' },
+                  'notumor': { name: 'No Tumor', description: 'No tumor detected in the brain MRI scan', severity: 'None' }
+                };
+                return tumorTypes[cls] || null;
               };
 
               const mapRiskAssessment = (risk) => {
@@ -485,8 +498,11 @@ router.post('/upload-with-analysis',
                 riskAssessment: mapRiskAssessment(prediction.risk_assessment),
                 processingTime: prediction.processing_time || 0,
                 imageId: prediction.image_id || file.filename,
-                modelVersion: 'ResNet50-v1.0',
+                modelVersion: 'EfficientNetB3-v1.0',
                 analyzedAt: new Date(),
+                tumorType: prediction.predicted_class || null,
+                tumorTypeInfo: mapTumorType(prediction.predicted_class),
+                classProbabilities: prediction.probabilities || {},
                 metadata: mlResult
               };
             }

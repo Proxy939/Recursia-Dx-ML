@@ -3,7 +3,7 @@
 > **Purpose**: This is the living knowledge base of the entire RecursiaDx project.
 > It is auto-updated on every `git commit` via a pre-commit hook.
 > AI agents and developers should read this file before making any changes to the codebase.
-> **Last auto-updated**: 2026-04-24T02:27:51+05:30
+> **Last auto-updated**: 2026-04-24T03:01:37+05:30
 
 ---
 
@@ -376,6 +376,11 @@ BRAIN_TUMOR_MODEL_PATH=models/weights/brain_tumor_efficientnetb3.h5
 <!-- AUTO-UPDATED BY PRE-COMMIT HOOK — DO NOT EDIT BELOW THIS LINE MANUALLY -->
 <!-- CHANGELOG_START -->
 
+### [2026-04-24 03:01] — Commit (11 file(s) changed)
+- **Backend**: backend/routes/samples.js,
+- **Frontend**: client/src/components/AnalysisDashboard.jsx,client/src/components/AutoHeatmapDisplay.jsx,client/src/components/DashboardSidebar.jsx,client/src/components/ReportGeneration.jsx,client/src/components/SampleUpload.jsx,
+- **ML**: ml/api/app.py,
+
 ### [2026-04-24 02:27] — Commit (1 file(s) changed)
 - **Frontend**: client/src/components/SampleUpload.jsx,
 
@@ -474,5 +479,23 @@ BRAIN_TUMOR_MODEL_PATH=models/weights/brain_tumor_efficientnetb3.h5
 - **Default Type**: `imageType` defaults to `'tissue'` instead of empty string `''`, preventing the old validation error.
 - **Dead Code Removed**: Duplicate `TabsContent value="sample-upload"` block (fully commented out, containing SVS/TIFF/NDPI references) was deleted.
 - **File Input Restrict**: `accept` attribute changed from `image/*` to `image/jpeg,image/png,image/bmp,.jpg,.jpeg,.png,.bmp`.
+
+### [2026-04-24 02:35] — Critical Fix: Frontend API Port Mismatch (404 Error)
+- **Root Cause**: All frontend components were hardcoded to call `http://localhost:5001` (the ML Gateway), but the Node.js backend actually runs on **port 5000** (per `backend/.env PORT=5000`). This caused every API call to return 404 because the ML Gateway doesn't have Node.js routes like `/api/samples/upload-with-analysis`.
+- **Fix**: Replaced `localhost:5001` → `localhost:5000` across **8 files**: `SampleUpload.jsx`, `ReportGeneration.jsx`, `WSIViewer.jsx`, `SimpleHeatmapViewer.jsx`, `SimpleHeatmapDisplay.jsx`, `Settings.jsx`, `DashboardSidebar.jsx`, `AutoHeatmapDisplay.jsx`.
+- **ML Gateway Port**: Changed default port in `ml/api/app.py` from `5000` to `5001` to avoid conflict with Node.js backend.
+- **Env Config**: Added `ML_API_URL=http://localhost:5001` to `backend/.env` so `mlService.js` correctly proxies to the ML Gateway.
+- **Port Architecture**: `Frontend (5173)` → `Node.js Backend (5000)` → `ML Gateway (5001)` → `Brain Tumor API (5002)` / `Pneumonia API (5003)`.
+
+### [2026-04-24 02:50] — Tumor Type Classification Section in AI Analysis Dashboard
+- **New Feature**: Added a "Tumor Type Classification" card to `AnalysisDashboard.jsx` that shows which of the 4 brain tumor types was detected:
+  - 🔴 **Glioma** — High severity, arising from glial cells
+  - 🟠 **Meningioma** — Moderate severity, arising from meninges
+  - 🟣 **Pituitary Tumor** — Moderate severity, pituitary gland abnormality
+  - 🟢 **No Tumor** — Normal scan
+- **Probability Bar Chart**: Visual probability bars for all 4 classes side-by-side, with the detected class highlighted.
+- **Clinical Notes**: Contextual clinical advice displayed per tumor type (glioma → specialist consultation, meningioma → monitoring, pituitary → hormone panel).
+- **Backend Fix**: Updated `mapPrediction()` in `samples.js` to handle the 4-class output (`glioma`/`meningioma`/`pituitary`/`notumor`) instead of the old binary `Tumor`/`Non-Tumor`. Added `tumorType`, `tumorTypeInfo`, and `classProbabilities` fields to the `mlAnalysis` response.
+- **Model Version**: Updated model version label from `ResNet50-v1.0` to `EfficientNetB3-v1.0`.
 
 <!-- CHANGELOG_END -->

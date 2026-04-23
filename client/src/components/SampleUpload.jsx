@@ -169,7 +169,7 @@ export function SampleUpload({ onNext, onSampleCreated }) {
       }, 500)
       
       // Call backend demo endpoint
-      const response = await fetch(`http://localhost:5001/api/samples/demo-analysis?type=${demoType}`, {
+      const response = await fetch(`http://localhost:5000/api/samples/demo-analysis?type=${demoType}`, {
         method: 'POST'
       })
       
@@ -255,7 +255,7 @@ export function SampleUpload({ onNext, onSampleCreated }) {
         })
       }, 500)
       
-      const response = await fetch('http://localhost:5001/api/samples/upload-with-analysis', {
+      const response = await fetch('http://localhost:5000/api/samples/upload-with-analysis', {
         method: 'POST',
         body: formData
       })

@@ -497,6 +497,127 @@ export function AnalysisDashboard({ onNext, sample, analysisType = 'general' }) 
         )
       })()}
 
+      {/* Tumor Type Classification - Only for Tissue with tumor data */}
+      {imageType === 'tissue' && realTimeData && !isAnalyzing && (() => {
+        // Extract tumor classification from ML analyses
+        const analyses = realTimeData.analyses || []
+        const tumorTypes = analyses
+          .map(a => ({
+            tumorType: a.tumorType || a.metadata?.prediction?.predicted_class || null,
+            tumorTypeInfo: a.tumorTypeInfo || null,
+            classProbabilities: a.classProbabilities || a.metadata?.prediction?.probabilities || {},
+            confidence: a.confidence || 0
+          }))
+          .filter(a => a.tumorType)
+
+        if (tumorTypes.length === 0) return null
+
+        // Get the primary (highest confidence) tumor type
+        const primary = tumorTypes.sort((a, b) => b.confidence - a.confidence)[0]
+        const tumorClass = primary.tumorType?.toLowerCase()
+        const isNoTumor = tumorClass === 'notumor' || tumorClass === 'no tumor'
+
+        // Map for display
+        const classDisplayInfo = {
+          glioma: { label: 'Glioma', color: 'text-red-600', bg: 'bg-red-50', border: 'border-red-200', barColor: 'bg-red-500', icon: '🔴', description: 'A tumor arising from glial cells in the brain or spine. Gliomas are the most common type of primary brain tumor.' },
+          meningioma: { label: 'Meningioma', color: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-200', barColor: 'bg-amber-500', icon: '🟠', description: 'A tumor arising from the meninges, the membranes surrounding the brain and spinal cord. Usually slow-growing and often benign.' },
+          pituitary: { label: 'Pituitary Tumor', color: 'text-purple-600', bg: 'bg-purple-50', border: 'border-purple-200', barColor: 'bg-purple-500', icon: '🟣', description: 'An abnormal growth in the pituitary gland at the base of the brain. Can affect hormone production and vision.' },
+          notumor: { label: 'No Tumor', color: 'text-green-600', bg: 'bg-green-50', border: 'border-green-200', barColor: 'bg-green-500', icon: '🟢', description: 'No tumor detected in the brain MRI scan. The scan appears normal.' }
+        }
+
+        const displayInfo = classDisplayInfo[tumorClass] || classDisplayInfo.notumor
+        const probabilities = primary.classProbabilities || {}
+
+        // Ensure probabilities are in percentage format
+        const normalizedProbs = {}
+        for (const [key, val] of Object.entries(probabilities)) {
+          normalizedProbs[key] = val > 1 ? val : val * 100
+        }
+
+        return (
+          <Card className={`border-2 ${displayInfo.border} ${displayInfo.bg}/30`}>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Brain className="h-5 w-5" />
+                Tumor Type Classification
+                <Badge variant="outline" className="ml-auto text-xs">
+                  4-Class EfficientNetB3
+                </Badge>
+              </CardTitle>
+              <CardDescription>
+                Detailed classification across all 4 tumor categories
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-5">
+                {/* Primary Detection Result */}
+                <div className={`flex items-center gap-4 p-4 rounded-xl border-2 ${displayInfo.border} ${displayInfo.bg}`}>
+                  <div className="text-4xl">{displayInfo.icon}</div>
+                  <div className="flex-1">
+                    <div className={`text-2xl font-bold ${displayInfo.color}`}>
+                      {displayInfo.label}
+                    </div>
+                    <p className="text-sm text-muted-foreground mt-1">{displayInfo.description}</p>
+                  </div>
+                  <div className="text-right">
+                    <div className={`text-3xl font-bold ${displayInfo.color}`}>
+                      {(normalizedProbs[tumorClass] || primary.confidence * 100).toFixed(1)}%
+                    </div>
+                    <div className="text-xs text-muted-foreground">confidence</div>
+                  </div>
+                </div>
+
+                {/* All 4 Classes Probability Bars */}
+                <div className="space-y-3">
+                  <h4 className="font-semibold text-sm flex items-center gap-2">
+                    <BarChart3 className="h-4 w-4" />
+                    Class Probability Distribution
+                  </h4>
+                  {['glioma', 'meningioma', 'pituitary', 'notumor'].map(cls => {
+                    const info = classDisplayInfo[cls]
+                    const prob = normalizedProbs[cls] || 0
+                    const isDetected = cls === tumorClass
+                    return (
+                      <div key={cls} className={`flex items-center gap-3 p-2.5 rounded-lg transition-all ${isDetected ? `${info.bg} ${info.border} border-2 shadow-sm` : 'bg-gray-50 border border-transparent'}`}>
+                        <div className="text-lg w-6 text-center">{info.icon}</div>
+                        <div className="w-28 text-sm font-medium">
+                          {info.label}
+                          {isDetected && <Badge variant="secondary" className="ml-1.5 text-[10px] px-1 py-0">Detected</Badge>}
+                        </div>
+                        <div className="flex-1">
+                          <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                            <div 
+                              className={`h-3 rounded-full transition-all duration-1000 ${info.barColor}`}
+                              style={{ width: `${Math.min(prob, 100)}%` }}
+                            />
+                          </div>
+                        </div>
+                        <div className={`text-sm font-bold w-16 text-right ${isDetected ? info.color : 'text-gray-500'}`}>
+                          {prob.toFixed(1)}%
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+
+                {/* Severity Note */}
+                {!isNoTumor && (
+                  <Alert className="border-amber-200 bg-amber-50/50">
+                    <AlertTriangle className="h-4 w-4 text-amber-600" />
+                    <AlertTitle className="text-amber-800">Clinical Note</AlertTitle>
+                    <AlertDescription className="text-amber-700 text-sm">
+                      {tumorClass === 'glioma' && 'Gliomas require immediate specialist consultation. They can range from low-grade (slow-growing) to high-grade (aggressive). Further imaging and biopsy are recommended.'}
+                      {tumorClass === 'meningioma' && 'Meningiomas are usually benign and slow-growing. Regular monitoring with follow-up MRI scans is recommended. Surgical intervention may be needed if symptoms develop.'}
+                      {tumorClass === 'pituitary' && 'Pituitary tumors may affect hormone levels. Endocrinological evaluation and hormone panel tests are recommended alongside follow-up imaging.'}
+                    </AlertDescription>
+                  </Alert>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )
+      })()}
+
         {/* Tumor Percentage Detailed Analysis - Only for Tissue */}
       {imageType === 'tissue' && realTimeData && !isAnalyzing && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

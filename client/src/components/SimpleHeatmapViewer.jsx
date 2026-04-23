@@ -55,10 +55,10 @@ export function SimpleHeatmapViewer({ sample }) {
             heatmapsFromSample.push({
               id: `sample-${index}`,
               name: img.originalName || `Image ${index + 1}`,
-              src: img.heatmap.base64 || img.heatmap.image_base64 || `http://localhost:5001${img.heatmap.path}` || `http://localhost:5001${img.heatmap.file_path}`,
+              src: img.heatmap.base64 || img.heatmap.image_base64 || `http://localhost:5000${img.heatmap.path}` || `http://localhost:5000${img.heatmap.file_path}`,
               confidence: img.mlAnalysis?.confidence || 0,
               prediction: img.mlAnalysis?.prediction || 'unknown',
-              originalImage: `http://localhost:5001${img.url}` || `http://localhost:5001${img.path}`,
+              originalImage: `http://localhost:5000${img.url}` || `http://localhost:5000${img.path}`,
               analytics: img.heatmap.analytics
             })
           } else if (img.heatmapPath || img.heatmapBase64) {
@@ -66,10 +66,10 @@ export function SimpleHeatmapViewer({ sample }) {
             heatmapsFromSample.push({
               id: `sample-${index}`,
               name: img.originalName || `Image ${index + 1}`,
-              src: img.heatmapBase64 || `http://localhost:5001${img.heatmapPath}`,
+              src: img.heatmapBase64 || `http://localhost:5000${img.heatmapPath}`,
               confidence: img.mlAnalysis?.confidence || 0,
               prediction: img.mlAnalysis?.prediction || 'unknown',
-              originalImage: `http://localhost:5001${img.url}` || `http://localhost:5001${img.path}`
+              originalImage: `http://localhost:5000${img.url}` || `http://localhost:5000${img.path}`
             })
           } else {
             console.log(`❌ No heatmap found for image ${index + 1}`)
@@ -90,7 +90,7 @@ export function SimpleHeatmapViewer({ sample }) {
       }
 
       // If no heatmaps in sample data, try to fetch from backend
-      const response = await fetch('http://localhost:5001/api/samples/heatmaps/list')
+      const response = await fetch('http://localhost:5000/api/samples/heatmaps/list')
       if (response.ok) {
         const data = await response.json()
         setHeatmaps(data.heatmaps || [])
@@ -100,35 +100,35 @@ export function SimpleHeatmapViewer({ sample }) {
           {
             id: 'mock-1',
             name: 'Sample Heatmap 1',
-            src: 'http://localhost:5001/uploads/heatmaps/auto_heatmap_images-1760057547861-895269426.jpg_1760057548057.png',
+            src: 'http://localhost:5000/uploads/heatmaps/auto_heatmap_images-1760057547861-895269426.jpg_1760057548057.png',
             confidence: 0.85,
             prediction: 'malignant'
           },
           {
             id: 'mock-2', 
             name: 'Sample Heatmap 2',
-            src: 'http://localhost:5001/uploads/heatmaps/auto_heatmap_images-1760057493712-791330968.jpg_1760057493878.png',
+            src: 'http://localhost:5000/uploads/heatmaps/auto_heatmap_images-1760057493712-791330968.jpg_1760057493878.png',
             confidence: 0.72,
             prediction: 'benign'
           },
           {
             id: 'mock-3',
             name: 'Sample Heatmap 3', 
-            src: 'http://localhost:5001/uploads/heatmaps/auto_heatmap_images-1760057352506-265142668.jpg_1760057352673.png',
+            src: 'http://localhost:5000/uploads/heatmaps/auto_heatmap_images-1760057352506-265142668.jpg_1760057352673.png',
             confidence: 0.91,
             prediction: 'malignant'
           },
           {
             id: 'mock-4',
             name: 'Sample Heatmap 4',
-            src: 'http://localhost:5001/uploads/heatmaps/auto_heatmap_images-1760056871267-520384507.jpg_1760056871423.png',
+            src: 'http://localhost:5000/uploads/heatmaps/auto_heatmap_images-1760056871267-520384507.jpg_1760056871423.png',
             confidence: 0.67,
             prediction: 'benign'
           },
           {
             id: 'mock-5',
             name: 'Sample Heatmap 5',
-            src: 'http://localhost:5001/uploads/heatmaps/auto_heatmap_images-1760056740814-121516562.jpg_1760056741166.png',
+            src: 'http://localhost:5000/uploads/heatmaps/auto_heatmap_images-1760056740814-121516562.jpg_1760056741166.png',
             confidence: 0.88,
             prediction: 'malignant'
           }
@@ -345,14 +345,14 @@ export function SimpleHeatmapViewer({ sample }) {
             {
               id: 'test-1',
               name: 'Test Heatmap 1',
-              src: 'http://localhost:5001/uploads/heatmaps/auto_heatmap_images-1760057547861-895269426.jpg_1760057548057.png',
+              src: 'http://localhost:5000/uploads/heatmaps/auto_heatmap_images-1760057547861-895269426.jpg_1760057548057.png',
               confidence: 0.85,
               prediction: 'malignant'
             },
             {
               id: 'test-2',
               name: 'Test Heatmap 2', 
-              src: 'http://localhost:5001/uploads/heatmaps/auto_heatmap_images-1760057493712-791330968.jpg_1760057493878.png',
+              src: 'http://localhost:5000/uploads/heatmaps/auto_heatmap_images-1760057493712-791330968.jpg_1760057493878.png',
               confidence: 0.72,
               prediction: 'benign'
             }

@@ -330,7 +330,7 @@ export function Settings() {
               <CardContent className="space-y-4">
                 <div className="flex items-center gap-4 mb-6">
                   <Avatar className="h-20 w-20">
-                    <AvatarImage src={user?.avatar ? `http://localhost:5001${user.avatar}` : undefined} />
+                    <AvatarImage src={user?.avatar ? `http://localhost:5000${user.avatar}` : undefined} />
                     <AvatarFallback className="text-xl">
                       {user?.name?.split(' ').map(n => n[0]).join('').toUpperCase() || 'U'}
                     </AvatarFallback>
