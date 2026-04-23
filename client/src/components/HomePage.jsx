@@ -154,7 +154,7 @@ export function HomePage({ onLogin, onSignup }) {
               
               <p className="text-xl text-gray-600 mb-8 leading-relaxed">
                 Transform your pathology lab with AI-powered analysis, automated workflows, 
-                and professional reporting. Process blood tests and tissue biopsies with 
+                and professional reporting. Detect brain tumors and pneumonia with 
                 unprecedented speed and accuracy.
               </p>
               
@@ -196,7 +196,7 @@ export function HomePage({ onLogin, onSignup }) {
                   <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg border border-green-200">
                     <div className="flex items-center gap-3">
                       <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse" />
-                      <span className="text-sm font-medium">Blood Analysis Complete</span>
+                      <span className="text-sm font-medium">Brain Tumor MRI Complete</span>
                     </div>
                     <Badge className="bg-green-100 text-green-800 border-green-300">
                       96.8% Confidence
@@ -206,7 +206,7 @@ export function HomePage({ onLogin, onSignup }) {
                   <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg border border-blue-200">
                     <div className="flex items-center gap-3">
                       <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse" />
-                      <span className="text-sm font-medium">Tissue Biopsy Processing</span>
+                      <span className="text-sm font-medium">Chest X-ray Processing</span>
                     </div>
                     <Badge variant="secondary">
                       <Clock className="h-3 w-3 mr-1" />
@@ -216,16 +216,16 @@ export function HomePage({ onLogin, onSignup }) {
                   
                   <div className="grid grid-cols-3 gap-3 mt-4">
                     <div className="text-center p-3 bg-gray-50 rounded-lg">
-                      <div className="text-lg font-bold text-blue-600">4.2M</div>
-                      <div className="text-xs text-gray-600">RBC Count</div>
+                      <div className="text-lg font-bold text-blue-600">EfficientNet</div>
+                      <div className="text-xs text-gray-600">Tumor Model</div>
                     </div>
                     <div className="text-center p-3 bg-gray-50 rounded-lg">
-                      <div className="text-lg font-bold text-green-600">Normal</div>
-                      <div className="text-xs text-gray-600">Hemoglobin</div>
+                      <div className="text-lg font-bold text-green-600">DenseNet</div>
+                      <div className="text-xs text-gray-600">Pneumonia Model</div>
                     </div>
                     <div className="text-center p-3 bg-gray-50 rounded-lg">
-                      <div className="text-lg font-bold text-purple-600">8.9K</div>
-                      <div className="text-xs text-gray-600">WBC Count</div>
+                      <div className="text-lg font-bold text-purple-600">2</div>
+                      <div className="text-xs text-gray-600">Active Pipelines</div>
                     </div>
                   </div>
                 </div>

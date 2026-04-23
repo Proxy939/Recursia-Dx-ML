@@ -21,7 +21,7 @@ export function DashboardSidebar({ activeTab, onTabChange, user, onLogout }) {
       id: 'upload',
       title: 'Sample Upload',
       icon: 'Upload',
-      description: 'Upload blood smears and tissue slides'
+      description: 'Upload brain MRI scans and chest X-rays'
     },
     {
       id: 'viewer',

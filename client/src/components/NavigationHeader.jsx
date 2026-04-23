@@ -17,20 +17,20 @@ export function NavigationHeader({ user, onLogout, onGoToHome }) {
             <NavigationMenuList>
               <NavigationMenuItem>
                 <NavigationMenuTrigger>
-                  Blood Tests
+                  Brain Tumor Detection
                 </NavigationMenuTrigger>
                 <NavigationMenuContent>
                   <div className="grid w-80 gap-3 p-4">
                     <div className="grid gap-2">
-                      <h4 className="font-medium">Blood Analysis</h4>
+                      <h4 className="font-medium">MRI & Histopathology</h4>
                       <p className="text-sm text-muted-foreground">
-                        CBC, Hemoglobin, Platelet count, Blood sugar analysis
+                        EfficientNetB3-powered brain tumor detection from MRI and tissue slides
                       </p>
                     </div>
                     <div className="grid gap-2">
-                      <h4 className="font-medium">Infectious Disease</h4>
+                      <h4 className="font-medium">Heatmap Visualization</h4>
                       <p className="text-sm text-muted-foreground">
-                        HIV, HBsAg, Blood group, Rh factor testing
+                        AI-generated attention heatmaps highlighting suspicious regions
                       </p>
                     </div>
                   </div>
@@ -39,20 +39,20 @@ export function NavigationHeader({ user, onLogout, onGoToHome }) {
 
               <NavigationMenuItem>
                 <NavigationMenuTrigger>
-                  Tissue Analysis
+                  Pneumonia Detection
                 </NavigationMenuTrigger>
                 <NavigationMenuContent>
                   <div className="grid w-80 gap-3 p-4">
                     <div className="grid gap-2">
-                      <h4 className="font-medium">Biopsy Analysis</h4>
+                      <h4 className="font-medium">Chest X-ray Analysis</h4>
                       <p className="text-sm text-muted-foreground">
-                        Cancer detection in tissue samples using H&E staining
+                        DenseNet121 + EfficientNet-B0 ensemble model for pneumonia classification
                       </p>
                     </div>
                     <div className="grid gap-2">
-                      <h4 className="font-medium">WSI Processing</h4>
+                      <h4 className="font-medium">Classification Results</h4>
                       <p className="text-sm text-muted-foreground">
-                        Whole slide image analysis with multi-scale attention
+                        Normal vs Pneumonia prediction with confidence scores
                       </p>
                     </div>
                   </div>

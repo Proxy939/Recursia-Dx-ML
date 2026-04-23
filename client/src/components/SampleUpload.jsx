@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Progress } from '@/components/ui/progress'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { toast } from 'sonner'
-import { Upload, User, FileImage, AlertCircle, CheckCircle2, Camera, Droplets, Brain, Loader2, Play, FlaskConical, Microscope } from 'lucide-react'
+import { Upload, User, FileImage, AlertCircle, CheckCircle2, Camera, Stethoscope, Brain, Loader2, Play, FlaskConical, Microscope } from 'lucide-react'
 
 export function SampleUpload({ onNext, onSampleCreated }) {
   const [patientData, setPatientData] = useState({
@@ -25,7 +25,7 @@ export function SampleUpload({ onNext, onSampleCreated }) {
       contactNumber: '',
       address: ''
     },
-    imageType: '', // Added: tissue or blood smear
+    imageType: '', // tissue (brain MRI) or pneumonia (chest X-ray)
     specimenDetails: {
       organ: '',
       site: '',
@@ -303,7 +303,7 @@ export function SampleUpload({ onNext, onSampleCreated }) {
                   Select Demo Sample
                 </DialogTitle>
                 <DialogDescription>
-                  Choose a preloaded WSI sample to test the GigaPath cancer detection model.
+                  Choose a preloaded sample to test the Brain Tumor detection model.
                 </DialogDescription>
               </DialogHeader>
               <div className="grid grid-cols-2 gap-4 py-4">
@@ -333,7 +333,7 @@ export function SampleUpload({ onNext, onSampleCreated }) {
                 </Button>
               </div>
               <p className="text-xs text-center text-muted-foreground">
-                Demo samples are processed using the GigaPath AttentionMIL model
+                Demo samples are processed using the EfficientNetB3 brain tumor model
               </p>
             </DialogContent>
           </Dialog>
@@ -450,10 +450,10 @@ export function SampleUpload({ onNext, onSampleCreated }) {
                         <span>Tissue Image (Histopathology)</span>
                       </div>
                     </SelectItem>
-                    <SelectItem value="blood">
+                    <SelectItem value="pneumonia">
                       <div className="flex items-center gap-2">
-                        <Droplets className="h-4 w-4" />
-                        <span>Blood Smear Image</span>
+                        <Stethoscope className="h-4 w-4" />
+                        <span>Chest X-ray (Pneumonia Detection)</span>
                       </div>
                     </SelectItem>
                   </SelectContent>
@@ -539,7 +539,7 @@ export function SampleUpload({ onNext, onSampleCreated }) {
                   </div>
                   <Progress value={analysisProgress} className="w-full" />
                   <p className="text-xs text-muted-foreground">
-                    Processing images with ResNet50 tumor detection model
+                    Processing images with {patientData.imageType === 'pneumonia' ? 'DenseNet121 + EfficientNet-B0 Ensemble' : 'EfficientNetB3 brain tumor detection'} model
                   </p>
                 </div>
               )}
@@ -675,10 +675,10 @@ export function SampleUpload({ onNext, onSampleCreated }) {
                         <Brain className="h-3 w-3" />
                         Tissue Image (Histopathology)
                       </span>
-                    ) : patientData.imageType === 'blood' ? (
+                    ) : patientData.imageType === 'pneumonia' ? (
                       <span className="flex items-center gap-1">
-                        <Droplets className="h-3 w-3" />
-                        Blood Smear Image
+                        <Stethoscope className="h-3 w-3" />
+                        Chest X-ray (Pneumonia Detection)
                       </span>
                     ) : 'Not selected'}
                   </p>

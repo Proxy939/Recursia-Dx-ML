@@ -3,7 +3,7 @@
 > **Purpose**: This is the living knowledge base of the entire RecursiaDx project.
 > It is auto-updated on every `git commit` via a pre-commit hook.
 > AI agents and developers should read this file before making any changes to the codebase.
-> **Last auto-updated**: 2026-04-24T02:05:40+05:30
+> **Last auto-updated**: 2026-04-24T02:23:38+05:30
 
 ---
 
@@ -376,6 +376,9 @@ BRAIN_TUMOR_MODEL_PATH=models/weights/brain_tumor_efficientnetb3.h5
 <!-- AUTO-UPDATED BY PRE-COMMIT HOOK — DO NOT EDIT BELOW THIS LINE MANUALLY -->
 <!-- CHANGELOG_START -->
 
+### [2026-04-24 02:23] — Commit (7 file(s) changed)
+- **Frontend**: client/src/components/AnalysisDashboard.jsx,client/src/components/DashboardSidebar.jsx,client/src/components/HomePage.jsx,client/src/components/NavigationHeader.jsx,client/src/components/ReportGeneration.jsx,
+
 ### [2026-04-24 02:05] — Commit (8 file(s) changed)
 - **Backend**: backend/routes/samples.js,backend/services/mlService.js,
 - **ML**: ml/__init__.py,ml/api/app.py,ml/models/malaria_predictor.py,ml/models/platelet_counter.py,ml/start_server.py,
@@ -450,5 +453,15 @@ BRAIN_TUMOR_MODEL_PATH=models/weights/brain_tumor_efficientnetb3.h5
 - Created Python virtual environment: `ml/venv/` (TensorFlow isolated)
 - Added `--data_dir` CLI argument for local dataset path support
 - Fixed Windows `UnicodeEncodeError`: removed emojis from print statements, set `PYTHONIOENCODING=utf-8`
+
+### [2026-04-24 02:18] — Frontend Decommissioning: Blood/Malaria/Platelet → Brain Tumor + Pneumonia
+- **SampleUpload.jsx**: Replaced `Blood Smear Image` dropdown with `Chest X-ray (Pneumonia Detection)`. Updated `Droplets` icon to `Stethoscope`. Replaced GigaPath/ResNet50 model text with EfficientNetB3 and DenseNet121+EfficientNet-B0 Ensemble.
+- **NavigationHeader.jsx**: Replaced `Blood Tests` and `Tissue Analysis` nav menus with `Brain Tumor Detection` (MRI & Histopathology, Heatmap Visualization) and `Pneumonia Detection` (Chest X-ray Analysis, Classification Results).
+- **DashboardSidebar.jsx**: Updated upload description from "blood smears and tissue slides" to "brain MRI scans and chest X-rays".
+- **HomePage.jsx**: Replaced hero demo dashboard stats (RBC Count, Hemoglobin, WBC Count) with model names (EfficientNet, DenseNet, Active Pipelines). Updated hero text to "Detect brain tumors and pneumonia".
+- **AnalysisDashboard.jsx**: Complete overhaul — replaced all `bloodAnalysisData` state/logic/UI with `pneumoniaAnalysisData`. Replaced `Blood Smear Analysis` tab with `Pneumonia Detection` tab. Replaced `Tissue Analysis` tab label with `Brain Tumor Analysis`. Removed malaria detection section, cell count table (RBC/WBC/Platelets), and YOLOv8 references. Added Pneumonia detection cards and DenseNet121+EfficientNet-B0 ensemble model breakdown.
+- **ResultsReview.jsx**: Replaced `isBloodSample` with `isPneumonia`. Updated result labels from "Malaria Detection" to "Pneumonia Detection" and "Cancer Detection" to "Brain Tumor Detection". Replaced `Droplets` icon with `Stethoscope`.
+- **ReportGeneration.jsx**: Same `isBloodSample` → `isPneumonia` migration. Updated sample icon and probability label text.
+- **Zero remaining references**: Verified via `grep` that no `blood`, `malaria`, `platelet`, `smear`, `gigapath`, `YOLOv8`, `InceptionV3`, or `AttentionMIL` strings remain in `client/src/`.
 
 <!-- CHANGELOG_END -->

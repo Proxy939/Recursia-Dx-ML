@@ -15,7 +15,7 @@ import {
   Clock,
   Shield,
   Microscope,
-  Droplets,
+  Stethoscope,
   ArrowRight,
   RefreshCw,
   Sparkles,
@@ -43,7 +43,7 @@ export function ReportGeneration({ sample, onNext }) {
 
   // Determine sample type
   const sampleType = sample?.sampleType || 'Tissue Biopsy'
-  const isBloodSample = sampleType.toLowerCase().includes('blood')
+  const isPneumonia = sampleType.toLowerCase().includes('chest') || sampleType.toLowerCase().includes('pneumonia') || sample?.imageType === 'pneumonia'
 
   // Extract patient info from sample (from Step 1)
   const patientInfo = {
@@ -301,8 +301,8 @@ export function ReportGeneration({ sample, onNext }) {
         <CardContent className="p-4">
           <div className="flex items-center justify-between flex-wrap gap-4">
             <div className="flex items-center gap-4">
-              {isBloodSample ? (
-                <Droplets className="h-8 w-8 text-red-500" />
+              {isPneumonia ? (
+                <Stethoscope className="h-8 w-8 text-orange-500" />
               ) : (
                 <Microscope className="h-8 w-8 text-blue-500" />
               )}
@@ -533,7 +533,7 @@ export function ReportGeneration({ sample, onNext }) {
                           {analysisResults?.tumorProbability || 0}%
                         </div>
                         <div className="text-xs text-muted-foreground">
-                          {isBloodSample ? 'Detection Prob.' : 'Tumor Prob.'}
+                          {isPneumonia ? 'Detection Prob.' : 'Tumor Prob.'}
                         </div>
                       </div>
                       <div className="text-center p-4 bg-gray-50 rounded-lg">

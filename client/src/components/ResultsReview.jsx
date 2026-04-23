@@ -11,7 +11,7 @@ import {
   FileCheck,
   ArrowRight,
   Microscope,
-  Droplets,
+  Stethoscope,
   Activity,
   MessageSquare,
   Shield
@@ -24,7 +24,7 @@ export function ResultsReview({ onNext, sample }) {
 
   // Determine sample type
   const sampleType = sample?.sampleType || 'Tissue Biopsy'
-  const isBloodSample = sampleType.toLowerCase().includes('blood')
+  const isPneumonia = sampleType.toLowerCase().includes('chest') || sampleType.toLowerCase().includes('pneumonia') || sample?.imageType === 'pneumonia'
 
   // Extract analysis results
   const getAnalysisResults = () => {
@@ -150,8 +150,8 @@ export function ResultsReview({ onNext, sample }) {
         <CardContent className="p-4">
           <div className="flex items-center justify-between flex-wrap gap-4">
             <div className="flex items-center gap-4">
-              {isBloodSample ? (
-                <Droplets className="h-8 w-8 text-red-500" />
+              {isPneumonia ? (
+                <Stethoscope className="h-8 w-8 text-orange-500" />
               ) : (
                 <Microscope className="h-8 w-8 text-blue-500" />
               )}
@@ -177,7 +177,7 @@ export function ResultsReview({ onNext, sample }) {
         <CardHeader className="pb-2">
           <CardTitle className="flex items-center gap-2">
             <Activity className="h-5 w-5" />
-            {isBloodSample ? 'Blood Analysis Result' : 'Tissue Analysis Result'}
+            {isPneumonia ? 'Chest X-ray Analysis Result' : 'Brain Tumor Analysis Result'}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -185,10 +185,10 @@ export function ResultsReview({ onNext, sample }) {
             {/* Primary Result */}
             <div className="text-center p-6 bg-white rounded-lg border">
               <div className={`text-4xl font-bold mb-2 ${isPositive ? 'text-red-600' : 'text-green-600'}`}>
-                {isPositive ? (isBloodSample ? 'POSITIVE' : 'TUMOR DETECTED') : (isBloodSample ? 'NEGATIVE' : 'NO TUMOR')}
+                {isPositive ? (isPneumonia ? 'PNEUMONIA DETECTED' : 'TUMOR DETECTED') : (isPneumonia ? 'NORMAL' : 'NO TUMOR')}
               </div>
               <div className="text-lg text-muted-foreground">
-                {isBloodSample ? 'Malaria Detection' : 'Cancer Detection'}
+                {isPneumonia ? 'Pneumonia Detection' : 'Brain Tumor Detection'}
               </div>
             </div>
 
@@ -217,7 +217,7 @@ export function ResultsReview({ onNext, sample }) {
 
               <div className="p-4 bg-white rounded-lg border">
                 <div className="text-sm text-muted-foreground">
-                  {isBloodSample ? 'Detection Probability' : 'Tumor Probability'}
+                  {isPneumonia ? 'Detection Probability' : 'Tumor Probability'}
                 </div>
                 <div className="text-xl font-semibold">
                   {tumorProb.toFixed(1)}%
