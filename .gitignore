@@ -75,3 +75,7 @@ ml/*.db
 # Jupyter
 .ipynb_checkpoints/
 *.ipynb
+
+# Ignore old broken LFS pointers
+ml/models/weights/*.pth
+ml/models/weights/*.pt
