@@ -87,7 +87,7 @@ router.post('/test-upload', (req, res) => {
 // Test ML service health status (no auth required for debugging)
 router.get('/ml-health-test', catchAsync(async (req, res) => {
   try {
-    const response = await fetch('http://localhost:5001/health', {
+    const response = await fetch(`${process.env.ML_API_URL || 'http://localhost:5000'}/health`, {
       method: 'GET',
       timeout: 5000
     });
@@ -355,7 +355,7 @@ router.post('/upload-with-analysis',
         const patientInfo = JSON.parse(req.body.patientInfo)
         sampleData = {
           patientInfo,
-          sampleType: 'Tissue',
+          sampleType: 'Brain MRI',
           collectionDate: new Date().toISOString()
         }
       } else {
@@ -366,7 +366,7 @@ router.post('/upload-with-analysis',
             age: 0,
             gender: 'Unknown'
           },
-          sampleType: 'Tissue',
+          sampleType: 'Brain MRI',
           collectionDate: new Date().toISOString()
         }
       }
@@ -378,7 +378,7 @@ router.post('/upload-with-analysis',
 
       // Set sampleType based on imageType selection
       sampleData.sampleType = (imageType === 'pneumonia' || imageType === 'lung' || imageType === 'xray') ? 'Chest X-ray' :
-                               'Tissue Biopsy';
+                               'Brain MRI';
 
       // CRITICAL: Check if ML service is available
       const mlHealthCheck = await MLService.checkHealth();
@@ -442,48 +442,7 @@ router.post('/upload-with-analysis',
             const prediction = mlResult.prediction;
 
             // Handle different result formats based on imageType
-            if (imageType === 'blood') {
-              // Blood smear analysis - malaria + platelet count
-              const malariaResult = prediction.malaria_detection || {};
-              const plateletResult = prediction.blood_cell_count || {};
-
-              // Map risk_level to lowercase enum value
-              const mapBloodRiskLevel = (risk) => {
-                if (risk && typeof risk === 'string') {
-                  const lower = risk.toLowerCase();
-                  if (lower.includes('high')) return 'high';
-                  if (lower.includes('low')) return 'low';
-                }
-                return 'medium';
-              };
-
-              imageData.mlAnalysis = {
-                prediction: malariaResult.predicted_class === 'Parasitized' ? 'malignant' : 'benign',
-                confidence: Number(malariaResult.confidence) || 0.5,
-                riskAssessment: mapBloodRiskLevel(malariaResult.risk_level),
-                processingTime: mlResult.processing_time || 0,
-                imageId: mlResult.image_id || file.filename,
-                modelVersion: 'Blood-Analysis-v1.0',
-                analyzedAt: new Date(),
-                bloodAnalysis: {
-                  malaria: {
-                    status: malariaResult.predicted_class || 'Unknown',
-                    confidence: malariaResult.confidence || 0,
-                    isParasitized: malariaResult.is_parasitized || false,
-                    probabilities: malariaResult.probabilities || {}
-                  },
-                  cellCount: {
-                    platelets: plateletResult.counts?.Platelets || 0,
-                    rbc: plateletResult.counts?.RBC || 0,
-                    wbc: plateletResult.counts?.WBC || 0,
-                    totalCells: plateletResult.total_cells || 0,
-                    status: plateletResult.status || 'unknown'
-                  }
-                },
-                metadata: mlResult
-              };
-              console.log(`🩸 Blood analysis data structured for ${file.filename}:`, JSON.stringify(imageData.mlAnalysis, null, 2));
-            } else if (imageType === 'pneumonia' || imageType === 'lung' || imageType === 'xray') {
+            if (imageType === 'pneumonia' || imageType === 'lung' || imageType === 'xray') {
               // Pneumonia analysis - chest X-ray
               imageData.mlAnalysis = {
                 prediction: prediction.is_pneumonia ? 'malignant' : 'benign',
@@ -1164,7 +1123,7 @@ router.post('/demo-analysis', catchAsync(async (req, res) => {
       age: 45,
       gender: 'Female'
     },
-    sampleType: 'Tissue Biopsy',
+    sampleType: 'Brain MRI',
     collectionInfo: {
       collectionDate: new Date()
     },

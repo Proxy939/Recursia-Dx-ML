@@ -138,8 +138,8 @@ async function generateAutoHeatmap(imagePath, imageId) {
   });
 }
 
-// Debug: Check if Gemini API key is loaded
-console.log('🔑 Gemini API Key loaded:', process.env.GEMINI_API_KEY ? '✅ YES' : '❌ NO');
+// Debug: Check if OpenAI API key is loaded
+console.log('🔑 OpenAI API Key loaded:', process.env.OPENAI_API_KEY ? '✅ YES' : '❌ NO');
 
 const app = express();
 
@@ -240,91 +240,8 @@ app.get('/health', (req, res) => {
 // API routes
 app.use('/api/auth', authRoutes);
 
-// Simple upload route directly in server.js (bypass auth issues)
-app.post('/api/upload-simple', upload.array('images', 10), async (req, res) => {
-  try {
-    console.log('🎯 UPLOAD ROUTE REACHED!');
-    console.log('Files:', req.files);
-    console.log('Body:', req.body);
-
-    if (!req.files || req.files.length === 0) {
-      return res.status(400).json({ error: 'No files uploaded' });
-    }
-
-    // Process uploaded files with auto-heatmap generation
-    const uploadedFiles = [];
-
-    for (let i = 0; i < req.files.length; i++) {
-      const file = req.files[i];
-
-      // Basic file info
-      const fileData = {
-        filename: file.filename,
-        originalName: file.originalname,
-        size: file.size,
-        mimetype: file.mimetype,
-        path: file.path,
-        url: `/uploads/${file.filename}` // URL to access the file
-      };
-
-      // Generate auto-heatmap for each image
-      console.log(`🎨 Auto-generating heatmap for image ${i + 1}/${req.files.length}: ${file.filename}`);
-      const heatmapResult = await generateAutoHeatmap(file.path, file.filename);
-
-      if (heatmapResult.success) {
-        fileData.heatmap = heatmapResult.heatmap;
-        console.log(`✅ Heatmap auto-generated for ${file.filename}`);
-      } else {
-        console.log(`❌ Heatmap auto-generation failed for ${file.filename}:`, heatmapResult.error);
-      }
-
-      uploadedFiles.push(fileData);
-    }
-
-    // Mock ML analysis for each file
-    const analysisResults = uploadedFiles.map(file => ({
-      filename: file.filename,
-      originalName: file.originalName,
-      url: file.url,
-      heatmap: file.heatmap, // Include heatmap data
-      mlAnalysis: {
-        predicted_class: Math.random() > 0.5 ? 'Tumor' : 'Non-Tumor',
-        confidence: 0.7 + Math.random() * 0.3,
-        is_tumor: Math.random() > 0.5,
-        probabilities: {
-          non_tumor: Math.random() * 0.5,
-          tumor: 0.5 + Math.random() * 0.5
-        },
-        risk_level: ['Low Risk', 'Low-Moderate Risk', 'Moderate Risk', 'High Risk'][Math.floor(Math.random() * 4)],
-        detected_features: ['Cell abnormalities', 'Tissue irregularities', 'Nuclear pleomorphism'][Math.floor(Math.random() * 3)]
-      }
-    }));
-
-    // Create sample data structure
-    const sampleData = {
-      id: Date.now().toString(),
-      patientInfo: JSON.parse(req.body.patientInfo || '{}'),
-      images: analysisResults,
-      uploadedAt: new Date().toISOString(),
-      status: 'completed'
-    };
-
-    console.log('✅ Sample data created:', sampleData);
-
-    res.json({
-      success: true,
-      message: 'Upload successful',
-      sample: sampleData
-    });
-
-  } catch (error) {
-    console.error('❌ Upload error:', error);
-    res.status(500).json({
-      error: 'Upload failed',
-      message: error.message
-    });
-  }
-});
+// REMOVED: Legacy /api/upload-simple route — it used Math.random() fake predictions.
+// All uploads should go through /api/samples/upload-with-analysis which uses real ML.
 
 // Test route bypassing samples router
 app.post('/api/test-no-auth', (req, res) => {

@@ -39,8 +39,8 @@ const sampleSchema = new mongoose.Schema({
   sampleType: {
     type: String,
     enum: {
-      values: ['Blood Smear', 'Tissue Biopsy', 'Bone Marrow', 'Cytology', 'Fine Needle Aspirate', 'Other'],
-      message: 'Sample type must be one of: Blood Smear, Tissue Biopsy, Bone Marrow, Cytology, Fine Needle Aspirate, Other'
+      values: ['Brain MRI', 'Chest X-ray', 'Tissue Biopsy', 'Blood Smear', 'Bone Marrow', 'Cytology', 'Fine Needle Aspirate', 'Other'],
+      message: 'Sample type must be one of: Brain MRI, Chest X-ray, Tissue Biopsy, Blood Smear, Bone Marrow, Cytology, Fine Needle Aspirate, Other'
     },
     required: [true, 'Sample type is required']
   },

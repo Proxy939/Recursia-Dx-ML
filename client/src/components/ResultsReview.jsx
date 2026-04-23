@@ -23,7 +23,7 @@ export function ResultsReview({ onNext, sample }) {
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   // Determine sample type
-  const sampleType = sample?.sampleType || 'Tissue Biopsy'
+  const sampleType = sample?.sampleType || 'Brain MRI'
   const isPneumonia = sampleType.toLowerCase().includes('chest') || sampleType.toLowerCase().includes('pneumonia') || sample?.imageType === 'pneumonia'
 
   // Extract analysis results
@@ -38,32 +38,37 @@ export function ResultsReview({ onNext, sample }) {
     }
 
     const analysis = firstImage.mlAnalysis
+
+    if (isPneumonia) {
+      // Pneumonia analysis — uses different data structure
+      const confidence = analysis.confidence || 0
+      const confidencePct = confidence <= 1 ? confidence * 100 : confidence
+      const detected = analysis.isPneumonia || analysis.prediction === 'malignant'
+
+      return {
+        prediction: detected ? 'Pneumonia Detected' : 'Normal',
+        confidence: confidencePct.toFixed(1),
+        riskLevel: detected ? 'High' : 'Low',
+        probabilities: analysis.classProbabilities || {},
+        tumorProbability: confidencePct / 100,
+        isPositive: detected,
+        severity: analysis.severity || 'Unknown',
+        detectedFeatures: []
+      }
+    }
     
-    // Model's confidence IS the tumor probability
+    // Brain tumor analysis
     let tumorProb = analysis.metadata?.probabilities?.tumor || analysis.confidence || 0
-    
-    // Convert to percentage if decimal
     if (tumorProb <= 1) tumorProb = tumorProb * 100
-    
-    // Determine if positive (>= 54% threshold)
     const isPositive = tumorProb >= 54
-    
-    // Always calculate risk level from tumor probability
     const riskLevel = tumorProb >= 70 ? 'High' : tumorProb >= 50 ? 'Medium' : 'Low'
-    
-    console.log('🔍 ResultsReview - ML Data:', {
-      confidence: analysis.confidence,
-      tumorProb,
-      isPositive,
-      riskLevel
-    })
     
     return {
       prediction: isPositive ? 'Malignant' : 'Benign',
       confidence: (analysis.confidence <= 1 ? analysis.confidence * 100 : analysis.confidence).toFixed(1),
       riskLevel,
       probabilities: analysis.metadata?.probabilities || {},
-      tumorProbability: tumorProb / 100, // Store as decimal for consistency
+      tumorProbability: tumorProb / 100,
       isPositive,
       detectedFeatures: analysis.detected_features || analysis.metadata?.detected_features || []
     }

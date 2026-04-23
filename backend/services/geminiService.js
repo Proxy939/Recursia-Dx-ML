@@ -29,7 +29,7 @@ export async function generateFullReport(sample, mlResults) {
 
 SAMPLE INFORMATION:
 - Sample ID: ${sample.sampleId || sample._id}
-- Sample Type: ${sample.sampleType || 'Tissue Biopsy'}
+- Sample Type: ${sample.sampleType || 'Brain MRI'}
 - Collection Date: ${sample.sampleInfo?.collectionDate || 'Not specified'}
 
 PATIENT INFORMATION:
@@ -114,7 +114,7 @@ export async function generateClinicalSummary(mlResults, patientInfo = {}) {
         const prompt = `You are a medical AI assistant generating clinical summaries for pathology reports. 
 
 AI ANALYSIS DATA:
-- Sample Type: ${mlResults.sampleType || 'Tissue Biopsy'}
+- Sample Type: ${mlResults.sampleType || 'Brain MRI'}
 - Images Analyzed: ${mlResults.totalImages || 0}
 - Malignant Detections: ${mlResults.malignantDetections || 0}
 - Detection Probability: ${((mlResults.tumorProbability || 0)).toFixed(1)}%

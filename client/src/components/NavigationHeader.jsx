@@ -22,9 +22,9 @@ export function NavigationHeader({ user, onLogout, onGoToHome }) {
                 <NavigationMenuContent>
                   <div className="grid w-80 gap-3 p-4">
                     <div className="grid gap-2">
-                      <h4 className="font-medium">MRI & Histopathology</h4>
+                      <h4 className="font-medium">Brain MRI Analysis</h4>
                       <p className="text-sm text-muted-foreground">
-                        EfficientNetB3-powered brain tumor detection from MRI and tissue slides
+                        EfficientNetB3-powered brain tumor detection from MRI scans
                       </p>
                     </div>
                     <div className="grid gap-2">

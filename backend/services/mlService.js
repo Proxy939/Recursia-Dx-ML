@@ -2,7 +2,7 @@ import fetch from 'node-fetch';
 import FormData from 'form-data';
 import fs from 'fs';
 
-const ML_API_URL = process.env.ML_API_URL || 'http://localhost:5001';
+const ML_API_URL = process.env.ML_API_URL || 'http://localhost:5000';
 
 class MLService {
   static async predictImage(imagePath, filename, imageType = 'tissue') {

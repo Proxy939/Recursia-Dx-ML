@@ -42,7 +42,7 @@ export function ReportGeneration({ sample, onNext }) {
   }
 
   // Determine sample type
-  const sampleType = sample?.sampleType || 'Tissue Biopsy'
+  const sampleType = sample?.sampleType || 'Brain MRI'
   const isPneumonia = sampleType.toLowerCase().includes('chest') || sampleType.toLowerCase().includes('pneumonia') || sample?.imageType === 'pneumonia'
 
   // Extract patient info from sample (from Step 1)
@@ -68,25 +68,36 @@ export function ReportGeneration({ sample, onNext }) {
     if (!firstImage?.mlAnalysis) return null
 
     const analysis = firstImage.mlAnalysis
+
+    if (isPneumonia) {
+      // Pneumonia analysis — uses isPneumonia flag and different probability structure
+      const confidence = analysis.confidence || 0
+      const confidencePct = confidence <= 1 ? confidence * 100 : confidence
+      const detected = analysis.isPneumonia || analysis.prediction === 'malignant'
+
+      return {
+        prediction: detected ? 'Pneumonia Detected' : 'Normal',
+        confidence: confidencePct.toFixed(1),
+        riskLevel: detected ? 'High' : 'Low',
+        tumorProbability: confidencePct.toFixed(1),
+        normalProbability: (100 - confidencePct).toFixed(1),
+        isPositive: detected,
+        totalImages: sample.images.length,
+        analyzedImages: sample.images.filter(img => img.mlAnalysis).length,
+        severity: analysis.severity || 'Unknown',
+        modelVersion: analysis.modelVersion || 'DenseNet121+EfficientNetB0'
+      }
+    }
     
-    // Model's confidence IS the tumor probability
+    // Brain tumor analysis
     let tumorProb = analysis.metadata?.probabilities?.tumor || analysis.confidence || 0
-    
-    // Convert to percentage if decimal
     if (tumorProb <= 1) tumorProb = tumorProb * 100
-    
-    // Determine if positive (>= 54% threshold)
     const isPositive = tumorProb >= 54
-    
-    // Always calculate risk level from tumor probability (ignore stored value which might be stale)
     const riskLevel = tumorProb >= 70 ? 'High' : tumorProb >= 50 ? 'Medium' : 'Low'
-    
-    console.log('🔍 ReportGeneration - ML Data:', {
-      confidence: analysis.confidence,
-      tumorProb,
-      isPositive,
-      riskLevel
-    })
+
+    // Extract tumor type classification if available
+    const tumorType = analysis.tumorType || analysis.metadata?.prediction?.predicted_class || null
+    const tumorTypeInfo = analysis.tumorTypeInfo || null
 
     return {
       prediction: isPositive ? 'Malignant' : 'Benign',
@@ -96,7 +107,10 @@ export function ReportGeneration({ sample, onNext }) {
       normalProbability: (100 - tumorProb).toFixed(1),
       isPositive,
       totalImages: sample.images.length,
-      analyzedImages: sample.images.filter(img => img.mlAnalysis).length
+      analyzedImages: sample.images.filter(img => img.mlAnalysis).length,
+      tumorType,
+      tumorTypeInfo,
+      modelVersion: analysis.modelVersion || 'EfficientNetB3'
     }
   }
 
@@ -267,7 +281,7 @@ export function ReportGeneration({ sample, onNext }) {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold">Report Generation</h1>
-            <p className="text-muted-foreground">Step 5: Generate professional pathology report</p>
+            <p className="text-muted-foreground">Step 5: Generate professional diagnostic report</p>
           </div>
         </div>
 
@@ -334,7 +348,7 @@ export function ReportGeneration({ sample, onNext }) {
             <FileText className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
             <h2 className="text-xl font-semibold mb-2">Ready to Generate Report</h2>
             <p className="text-muted-foreground mb-6">
-              Click below to generate the professional pathology report with AI-assisted clinical summary.
+              Click below to generate the professional diagnostic report with AI-assisted clinical summary.
             </p>
             <Button size="lg" onClick={generateReport}>
               <Sparkles className="h-4 w-4 mr-2" />
@@ -438,7 +452,7 @@ export function ReportGeneration({ sample, onNext }) {
                     </div>
                     <div className="text-right">
                       <div className="bg-blue-900 text-white px-4 py-2 rounded">
-                        <h2 className="font-bold">PATHOLOGY REPORT</h2>
+                        <h2 className="font-bold">{isPneumonia ? 'CHEST X-RAY REPORT' : 'NEURORADIOLOGY REPORT'}</h2>
                       </div>
                       <p className="text-sm mt-2 text-gray-600">Report ID: {reportData?.reportId || patientInfo.id}</p>
                     </div>
@@ -510,8 +524,8 @@ export function ReportGeneration({ sample, onNext }) {
                 <Card className="mb-6">
                   <CardHeader className="pb-3">
                     <CardTitle className="text-lg flex items-center gap-2">
-                      <Microscope className="h-5 w-5" />
-                      AI Analysis Results
+                      {isPneumonia ? <Stethoscope className="h-5 w-5" /> : <Microscope className="h-5 w-5" />}
+                      {isPneumonia ? 'Pneumonia Detection Results' : 'Brain Tumor Detection Results'}
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
@@ -592,7 +606,7 @@ export function ReportGeneration({ sample, onNext }) {
                       <CardTitle className="text-lg flex items-center gap-2">
                         <Sparkles className="h-5 w-5 text-purple-500" />
                         AI Interpretation
-                        <Badge variant="secondary" className="ml-2">Gemini AI</Badge>
+                        <Badge variant="secondary" className="ml-2">AI Generated</Badge>
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
@@ -602,7 +616,7 @@ export function ReportGeneration({ sample, onNext }) {
                       </div>
                       <div>
                         <h4 className="font-medium text-sm text-muted-foreground mb-1">Morphological Findings</h4>
-                        <p className="text-sm">{geminiReport.report.content.morphologicalFindings || 'Morphological analysis not available.'}</p>
+                        <p className="text-sm">{geminiReport.report.content.morphologicalFindings || 'Imaging findings not available.'}</p>
                       </div>
                     </CardContent>
                   </Card>
@@ -615,7 +629,7 @@ export function ReportGeneration({ sample, onNext }) {
                       <CardTitle className="text-lg flex items-center gap-2">
                         <CheckCircle2 className="h-5 w-5 text-blue-500" />
                         Recommendations
-                        <Badge variant="secondary" className="ml-2">Gemini AI</Badge>
+                        <Badge variant="secondary" className="ml-2">AI Generated</Badge>
                       </CardTitle>
                     </CardHeader>
                     <CardContent>

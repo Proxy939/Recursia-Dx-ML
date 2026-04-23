@@ -45,7 +45,7 @@ export function DashboardSidebar({ activeTab, onTabChange, user, onLogout }) {
       id: 'report',
       title: 'Generate Report',
       icon: 'FileText',
-      description: 'Create professional pathology reports'
+      description: 'Create professional diagnostic reports'
     }
   ]
 

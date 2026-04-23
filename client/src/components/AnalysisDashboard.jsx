@@ -232,10 +232,10 @@ export function AnalysisDashboard({ onNext, sample, analysisType = 'general' }) 
     // For tissue analysis
     if (!realTimeData) {
       return [
-        { category: 'Cell Detection', confidence: 96.8, color: '#22c55e' },
-        { category: 'Morphology Analysis', confidence: 94.2, color: '#3b82f6' },
-        { category: 'Anomaly Detection', confidence: 87.5, color: '#f59e0b' },
-        { category: 'Classification', confidence: 91.3, color: '#8b5cf6' }
+        { category: 'Tumor Detection', confidence: 0, color: '#9ca3af', description: 'Awaiting analysis data' },
+        { category: 'Model Confidence', confidence: 0, color: '#9ca3af', description: 'Awaiting analysis data' },
+        { category: 'Tumor Probability', confidence: 0, color: '#9ca3af', description: 'Awaiting analysis data' },
+        { category: 'Risk Assessment', confidence: 0, color: '#9ca3af', description: 'Awaiting analysis data' }
       ]
     }
 
@@ -1028,7 +1028,7 @@ export function AnalysisDashboard({ onNext, sample, analysisType = 'general' }) 
                 <AlertTriangle className="h-12 w-12 mx-auto mb-4 text-gray-400" />
                 <h3 className="text-lg font-semibold mb-2">Brain Tumor Analysis Not Applicable</h3>
                 <p className="text-muted-foreground">
-                  This analysis is only available for tissue/histopathology images. 
+                  This analysis is only available for Brain MRI images. 
                   The current sample is a chest X-ray for pneumonia detection.
                 </p>
               </CardContent>
@@ -1037,16 +1037,16 @@ export function AnalysisDashboard({ onNext, sample, analysisType = 'general' }) 
             <Card>
               <CardContent className="p-8 text-center">
                 <AlertTriangle className="h-12 w-12 mx-auto mb-4 text-yellow-600" />
-                <h3 className="text-lg font-semibold mb-2">No Tissue Analysis Data</h3>
+                <h3 className="text-lg font-semibold mb-2">No Brain Tumor Analysis Data</h3>
                 <p className="text-muted-foreground">
-                  Tissue biopsy analysis results will appear here after analyzing histopathology images.
+                  Brain tumor analysis results will appear here after analyzing MRI images.
                 </p>
               </CardContent>
             </Card>
           ) : (
           <Card>
             <CardHeader>
-              <CardTitle>Tissue Biopsy Analysis</CardTitle>
+              <CardTitle>Brain Tumor Analysis</CardTitle>
               <CardDescription>
                 AI-powered cancer detection and morphological analysis
               </CardDescription>

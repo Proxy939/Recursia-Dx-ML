@@ -21,29 +21,16 @@ export function SampleUpload({ onNext, onSampleCreated }) {
       name: '',
       age: '',
       gender: '',
-      dateOfBirth: '',
       contactNumber: '',
-      address: ''
+      referringPhysician: ''
     },
-    imageType: 'tissue', // auto-detected: tissue (brain MRI) or pneumonia (chest X-ray)
-    specimenDetails: {
-      organ: '',
-      site: '',
-      size: '',
-      color: '',
-      consistency: ''
-    },
+    imageType: '', // must be explicitly chosen by user: 'tissue' or 'pneumonia'
     clinicalInfo: {
       clinicalDiagnosis: '',
       symptoms: [],
       duration: '',
-      urgency: 'Routine'
-    },
-    collectionInfo: {
-      collectionDate: new Date().toISOString().split('T')[0],
-      collectionTime: new Date().toTimeString().split(' ')[0].substring(0, 5),
-      collectionMethod: '',
-      transportConditions: ''
+      urgency: 'Routine',
+      medicalHistory: ''
     }
   })
   
@@ -55,11 +42,20 @@ export function SampleUpload({ onNext, onSampleCreated }) {
   const [showDemoDialog, setShowDemoDialog] = useState(false)
   const [isDemoMode, setIsDemoMode] = useState(false)
 
-  const symptoms = [
-    'Fatigue', 'Fever', 'Weight Loss', 'Night Sweats', 
-    'Unusual Bleeding', 'Persistent Cough', 'Difficulty Swallowing',
-    'Enlarged Lymph Nodes', 'Bone Pain', 'Easy Bruising'
+  // Dynamic symptoms based on selected analysis type
+  const brainTumorSymptoms = [
+    'Headaches', 'Seizures', 'Vision Problems', 'Nausea/Vomiting',
+    'Memory Loss', 'Confusion', 'Balance Issues', 'Speech Difficulty',
+    'Personality Changes', 'Numbness/Tingling', 'Fatigue', 'Dizziness'
   ]
+
+  const pneumoniaSymptoms = [
+    'Persistent Cough', 'Chest Pain', 'Shortness of Breath', 'Fever',
+    'Chills', 'Fatigue', 'Rapid Breathing', 'Wheezing',
+    'Loss of Appetite', 'Body Aches', 'Confusion (elderly)', 'Coughing Blood'
+  ]
+
+  const symptoms = patientData.imageType === 'pneumonia' ? pneumoniaSymptoms : brainTumorSymptoms
 
 
   const handleInputChange = (section, field, value) => {
@@ -116,22 +112,7 @@ export function SampleUpload({ onNext, onSampleCreated }) {
     })
     
     setUploadedFiles(prev => [...prev, ...newFiles])
-    
-    // Auto-detect image type from filename
-    const allFiles = [...uploadedFiles, ...newFiles]
-    const fileNames = allFiles.map(f => f.name.toLowerCase()).join(' ')
-    // DICOM files from chest X-rays → always route to pneumonia detection
-    const hasDicom = allFiles.some(f => f.isDicom)
-    const isPneumonia = hasDicom ||
-                        fileNames.includes('xray') || fileNames.includes('x-ray') || 
-                        fileNames.includes('chest') || fileNames.includes('pneumonia') || 
-                        fileNames.includes('lung') || fileNames.includes('cxr')
-    const detectedType = isPneumonia ? 'pneumonia' : 'tissue'
-    
-    setPatientData(prev => ({ ...prev, imageType: detectedType }))
-    
-    const typeLabel = isPneumonia ? 'Chest X-ray / DICOM (Pneumonia Detection)' : 'Brain MRI (Tumor Detection)'
-    toast.success(`${validFiles.length} file(s) selected — auto-detected as ${typeLabel}`)
+    toast.success(`${validFiles.length} file(s) added`)
   }
 
   const removeFile = (fileId) => {
@@ -358,7 +339,7 @@ export function SampleUpload({ onNext, onSampleCreated }) {
                     <AlertCircle className="h-6 w-6 text-red-600" />
                   </div>
                   <span className="font-semibold">Tumor Sample</span>
-                  <span className="text-xs text-muted-foreground">Malignant tissue</span>
+                  <span className="text-xs text-muted-foreground">Tumor MRI sample</span>
                 </Button>
                 <Button 
                   variant="outline" 
@@ -370,7 +351,7 @@ export function SampleUpload({ onNext, onSampleCreated }) {
                     <CheckCircle2 className="h-6 w-6 text-green-600" />
                   </div>
                   <span className="font-semibold">Normal Sample</span>
-                  <span className="text-xs text-muted-foreground">Healthy tissue</span>
+                  <span className="text-xs text-muted-foreground">Normal MRI sample</span>
                 </Button>
               </div>
               <p className="text-xs text-center text-muted-foreground">
@@ -454,92 +435,121 @@ export function SampleUpload({ onNext, onSampleCreated }) {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Blood Group</Label>
-                  <Select onValueChange={(value) => setPatientData(prev => ({...prev, bloodGroup: value}))}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select blood group" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="A+">A+</SelectItem>
-                      <SelectItem value="A-">A-</SelectItem>
-                      <SelectItem value="B+">B+</SelectItem>
-                      <SelectItem value="B-">B-</SelectItem>
-                      <SelectItem value="AB+">AB+</SelectItem>
-                      <SelectItem value="AB-">AB-</SelectItem>
-                      <SelectItem value="O+">O+</SelectItem>
-                      <SelectItem value="O-">O-</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <Label htmlFor="contactNumber">Contact Number</Label>
+                  <Input
+                    id="contactNumber"
+                    placeholder="+91 98765 43210"
+                    value={patientData.patientInfo.contactNumber}
+                    onChange={(e) => handleInputChange('patientInfo', 'contactNumber', e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="referringPhysician">Referring Physician</Label>
+                  <Input
+                    id="referringPhysician"
+                    placeholder="Dr. Name"
+                    value={patientData.patientInfo.referringPhysician}
+                    onChange={(e) => handleInputChange('patientInfo', 'referringPhysician', e.target.value)}
+                  />
                 </div>
               </div>
 
               <div className="space-y-3">
-                <Label className="flex items-center gap-2">
-                  Image Type
-                  <Badge variant="outline" className="text-xs">
-                    Auto-Detected
-                  </Badge>
+                <Label className="flex items-center gap-2 text-sm font-medium">
+                  Analysis Type
+                  <span className="text-red-500">*</span>
                 </Label>
-                <div className="flex items-center gap-3 p-3 border rounded-lg bg-muted/30">
-                  {patientData.imageType === 'pneumonia' ? (
-                    <>
-                      <Stethoscope className="h-5 w-5 text-orange-500" />
-                      <div>
-                        <p className="text-sm font-medium">Chest X-ray (Pneumonia Detection)</p>
-                        <p className="text-xs text-muted-foreground">DenseNet121 + EfficientNet-B0 Ensemble</p>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <Brain className="h-5 w-5 text-blue-500" />
-                      <div>
-                        <p className="text-sm font-medium">Brain MRI (Tumor Detection)</p>
-                        <p className="text-xs text-muted-foreground">EfficientNetB3 model</p>
-                      </div>
-                    </>
-                  )}
-                  <Badge variant="secondary" className="ml-auto text-xs">Auto</Badge>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setPatientData(prev => ({ ...prev, imageType: 'tissue', clinicalInfo: { ...prev.clinicalInfo, symptoms: [] } }))}
+                    className={`flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-all text-left ${
+                      patientData.imageType === 'tissue'
+                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30'
+                        : 'border-muted hover:border-blue-300 hover:bg-muted/40'
+                    }`}
+                  >
+                    <Brain className={`h-7 w-7 ${patientData.imageType === 'tissue' ? 'text-blue-600' : 'text-muted-foreground'}`} />
+                    <div>
+                      <p className="text-sm font-semibold">Brain MRI</p>
+                      <p className="text-xs text-muted-foreground">Tumor Detection</p>
+                      <p className="text-[10px] text-muted-foreground mt-0.5">EfficientNetB3</p>
+                    </div>
+                    {patientData.imageType === 'tissue' && (
+                      <CheckCircle2 className="h-4 w-4 text-blue-600 absolute top-2 right-2" />
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setPatientData(prev => ({ ...prev, imageType: 'pneumonia', clinicalInfo: { ...prev.clinicalInfo, symptoms: [] } }))}
+                    className={`flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-all text-left ${
+                      patientData.imageType === 'pneumonia'
+                        ? 'border-orange-500 bg-orange-50 dark:bg-orange-950/30'
+                        : 'border-muted hover:border-orange-300 hover:bg-muted/40'
+                    }`}
+                  >
+                    <Stethoscope className={`h-7 w-7 ${patientData.imageType === 'pneumonia' ? 'text-orange-600' : 'text-muted-foreground'}`} />
+                    <div>
+                      <p className="text-sm font-semibold">Chest X-ray</p>
+                      <p className="text-xs text-muted-foreground">Pneumonia Detection</p>
+                      <p className="text-[10px] text-muted-foreground mt-0.5">DenseNet121 + EffNet-B0</p>
+                    </div>
+                    {patientData.imageType === 'pneumonia' && (
+                      <CheckCircle2 className="h-4 w-4 text-orange-600 absolute top-2 right-2" />
+                    )}
+                  </button>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Image type is auto-detected from filenames. Include keywords like "xray", "chest", or "lung" for pneumonia detection.
-                  You can also override it below.
-                </p>
-                <Select value={patientData.imageType} onValueChange={(value) => setPatientData(prev => ({...prev, imageType: value}))}>
-                  <SelectTrigger className="text-xs h-8">
-                    <SelectValue placeholder="Override detection" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="tissue">Brain MRI / Tissue (Tumor Detection)</SelectItem>
-                    <SelectItem value="pneumonia">Chest X-ray (Pneumonia Detection)</SelectItem>
-                  </SelectContent>
-                </Select>
+                {!patientData.imageType && (
+                  <p className="text-xs text-red-500">Please select an analysis type before uploading.</p>
+                )}
               </div>
 
               <div className="space-y-3">
-                <Label>Clinical Diagnosis</Label>
+                <Label>Clinical Diagnosis / Reason for Scan</Label>
                 <Input
-                  placeholder="Enter preliminary diagnosis"
+                  placeholder={patientData.imageType === 'pneumonia' ? 'e.g., Suspected community-acquired pneumonia' : 'e.g., Suspected intracranial lesion'}
                   value={patientData.clinicalInfo.clinicalDiagnosis}
                   onChange={(e) => handleInputChange('clinicalInfo', 'clinicalDiagnosis', e.target.value)}
                 />
               </div>
 
               <div className="space-y-3">
-                <Label>Symptoms (Select all that apply)</Label>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                  {symptoms.map((symptom) => (
-                    <div key={symptom} className="flex items-center space-x-2">
-                      <Checkbox
-                        id={symptom}
-                        checked={patientData.clinicalInfo.symptoms.includes(symptom)}
-                        onCheckedChange={() => handleSymptomChange(symptom)}
-                      />
-                      <Label htmlFor={symptom} className="text-sm">
-                        {symptom}
-                      </Label>
-                    </div>
-                  ))}
-                </div>
+                <Label>Medical History (optional)</Label>
+                <Input
+                  placeholder={patientData.imageType === 'pneumonia' ? 'e.g., Asthma, COPD, recent surgery' : 'e.g., Previous stroke, family history of tumors'}
+                  value={patientData.clinicalInfo.medicalHistory}
+                  onChange={(e) => handleInputChange('clinicalInfo', 'medicalHistory', e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-3">
+                <Label>
+                  Symptoms (Select all that apply)
+                  {patientData.imageType && (
+                    <span className="ml-2 text-xs text-muted-foreground font-normal">
+                      — {patientData.imageType === 'pneumonia' ? 'Respiratory symptoms' : 'Neurological symptoms'}
+                    </span>
+                  )}
+                </Label>
+                {!patientData.imageType ? (
+                  <p className="text-xs text-muted-foreground">Please select an analysis type above to see relevant symptoms.</p>
+                ) : (
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    {symptoms.map((symptom) => (
+                      <div key={symptom} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={symptom}
+                          checked={patientData.clinicalInfo.symptoms.includes(symptom)}
+                          onCheckedChange={() => handleSymptomChange(symptom)}
+                        />
+                        <Label htmlFor={symptom} className="text-sm">
+                          {symptom}
+                        </Label>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -668,7 +678,7 @@ export function SampleUpload({ onNext, onSampleCreated }) {
                 </div>
                 <div>
 
-                  <Label className="text-sm font-medium">Image Type (Auto-Detected)</Label>
+                  <Label className="text-sm font-medium">Analysis Type</Label>
                   <p className="text-sm text-muted-foreground">
                     {patientData.imageType === 'tissue' ? (
                       <span className="flex items-center gap-1">
@@ -729,7 +739,7 @@ export function SampleUpload({ onNext, onSampleCreated }) {
               <Button 
                 onClick={handleSubmit} 
                 className="w-full"
-                disabled={isAnalyzing || uploadedFiles.length === 0}
+                disabled={isAnalyzing || uploadedFiles.length === 0 || !patientData.imageType}
               >
                 {isAnalyzing ? (
                   <>

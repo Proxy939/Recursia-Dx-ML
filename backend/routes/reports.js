@@ -7,12 +7,12 @@ import { verifyToken as auth } from '../middleware/auth.js';
 import { reportValidations } from '../middleware/validation.js';
 import { validationResult } from 'express-validator';
 
-// Gemini AI Service for clinical summary generation
+// AI Service for clinical summary generation (Gemini or OpenAI)
 let geminiService = null;
 try {
   geminiService = await import('../services/geminiService.js');
 } catch (error) {
-  console.log('ℹ️ Gemini service not available - using fallback summaries');
+  console.log('ℹ️ AI summary service not available - using fallback summaries');
 }
 
 const router = express.Router();
@@ -349,7 +349,7 @@ router.post('/generate-summary/:sampleId',
       averageConfidence: 0,
       overallRisk: 'Unknown',
       tumorProbability: null,
-      sampleType: sample.sampleType || 'Tissue Biopsy'
+      sampleType: sample.sampleType || 'Brain MRI'
     };
 
     if (sample.images?.length > 0) {
@@ -438,7 +438,7 @@ router.post('/generate-full/:sampleId',
       tumorProbability: 0,
       confidence: 0,
       riskLevel: 'Low',
-      sampleType: sample.sampleType || 'Tissue Biopsy'
+      sampleType: sample.sampleType || 'Brain MRI'
     };
 
     if (sample.images?.length > 0) {
@@ -464,30 +464,49 @@ router.post('/generate-full/:sampleId',
       }
     }
 
-    // Generate full report using Gemini - SINGLE REQUEST to avoid rate limits
+    // Generate full report using AI - SINGLE REQUEST to avoid rate limits
+    const isPneumoniaReport = mlResults.sampleType === 'Chest X-ray' || sample.imageType === 'pneumonia';
     let reportContent;
     if (geminiService?.generateFullReport) {
-      console.log('🚀 Making SINGLE Gemini API request...');
+      console.log('🚀 Making SINGLE AI API request...');
       reportContent = await geminiService.generateFullReport(sample, mlResults);
     } else {
-      // Fallback content
+      // Fallback content — type-aware
       reportContent = {
         success: true,
         generatedBy: 'Fallback',
         content: {
-          clinicalSummary: mlResults.isPositive
-            ? `AI analysis detected potential abnormalities with ${mlResults.confidence.toFixed(1)}% confidence.`
-            : `AI analysis confirms normal findings with ${mlResults.confidence.toFixed(1)}% confidence.`,
-          interpretation: 'The AI-powered digital pathology analysis has been completed. Results should be correlated with clinical findings.',
-          recommendations: mlResults.isPositive
-            ? ['Further histopathological examination recommended', 'Consider clinical correlation', 'Follow-up testing may be indicated']
-            : ['No immediate follow-up required', 'Continue routine screening', 'Clinical correlation advised'],
-          morphologicalFindings: mlResults.isPositive
-            ? 'AI detected features suggestive of cellular abnormalities.'
-            : 'Normal tissue architecture and cellular morphology observed.',
-          conclusion: mlResults.isPositive
-            ? 'Findings warrant pathologist review and possible additional testing.'
-            : 'No significant abnormalities detected. Routine follow-up recommended.'
+          clinicalSummary: isPneumoniaReport
+            ? (mlResults.isPositive
+              ? `AI analysis detected pneumonia indicators with ${mlResults.confidence.toFixed(1)}% confidence. DenseNet121 + EfficientNet-B0 ensemble model flagged abnormal opacities.`
+              : `AI analysis confirms normal chest X-ray with ${mlResults.confidence.toFixed(1)}% confidence. No pneumonia indicators detected.`)
+            : (mlResults.isPositive
+              ? `AI analysis detected potential brain tumor with ${mlResults.confidence.toFixed(1)}% confidence. EfficientNetB3 model flagged abnormal features in MRI scan.`
+              : `AI analysis confirms normal brain MRI with ${mlResults.confidence.toFixed(1)}% confidence. No tumor detected.`),
+          interpretation: isPneumoniaReport
+            ? 'AI-powered chest X-ray analysis has been completed using DenseNet121 + EfficientNet-B0 ensemble. Results should be correlated with clinical symptoms and patient history.'
+            : 'AI-powered brain MRI analysis has been completed using EfficientNetB3 4-class classifier. Results should be correlated with clinical symptoms and neurological examination.',
+          recommendations: isPneumoniaReport
+            ? (mlResults.isPositive
+              ? ['Chest CT scan recommended for further evaluation', 'Sputum culture and sensitivity testing advised', 'Consider blood work (CBC, CRP)', 'Follow-up chest X-ray in 4-6 weeks']
+              : ['No pneumonia detected — routine monitoring', 'Follow up if symptoms persist', 'Clinical correlation advised'])
+            : (mlResults.isPositive
+              ? ['Referral to neurosurgery/neuro-oncology recommended', 'Contrast-enhanced MRI for characterization', 'Consider biopsy for confirmation', 'Correlate with neurological exam']
+              : ['No tumor detected — routine follow-up', 'Continue periodic screening if risk factors present', 'Clinical correlation advised']),
+          morphologicalFindings: isPneumoniaReport
+            ? (mlResults.isPositive
+              ? 'AI detected opacities suggestive of pulmonary consolidation consistent with pneumonia.'
+              : 'Clear lung fields with no consolidation or infiltrates observed.')
+            : (mlResults.isPositive
+              ? 'AI detected features suggestive of intracranial mass lesion.'
+              : 'Normal brain parenchyma with no mass lesion detected.'),
+          conclusion: isPneumoniaReport
+            ? (mlResults.isPositive
+              ? 'Findings suggest pneumonia. Radiologist review and treatment initiation recommended.'
+              : 'No pneumonia detected. Routine follow-up recommended if clinically indicated.')
+            : (mlResults.isPositive
+              ? 'Findings suggest intracranial lesion. Neuroradiologist review and further workup recommended.'
+              : 'No brain tumor detected. Routine follow-up recommended.')
         }
       };
     }
@@ -592,31 +611,40 @@ router.get('/download-pdf/:sampleId',
       const firstImage = sample.images?.[0];
       const analysis = firstImage?.mlAnalysis || {};
 
-      // The model's confidence IS the tumor probability (user confirmed)
+      // Determine if this is a pneumonia or brain tumor report
+      const isPneumonia = sample.sampleType === 'Chest X-ray' || sample.imageType === 'pneumonia';
+      const reportTitle = isPneumonia ? 'CHEST X-RAY REPORT' : 'NEURORADIOLOGY REPORT';
+      const probLabel = isPneumonia ? 'Pneumonia Probability' : 'Tumor Probability';
+
+      // Extract confidence and probability
       const rawConfidence = analysis.confidence || 0;
       const confidencePercent = rawConfidence <= 1 ? rawConfidence * 100 : rawConfidence;
 
-      // Tumor probability = model confidence (this is what the model outputs)
-      let tumorProbPercent = confidencePercent;
+      let detectionProb = confidencePercent;
 
-      // If explicit probabilities exist, prefer them
-      if (analysis.metadata?.probabilities?.tumor !== undefined) {
-        tumorProbPercent = analysis.metadata.probabilities.tumor <= 1
+      if (!isPneumonia && analysis.metadata?.probabilities?.tumor !== undefined) {
+        detectionProb = analysis.metadata.probabilities.tumor <= 1
           ? analysis.metadata.probabilities.tumor * 100
           : analysis.metadata.probabilities.tumor;
       }
 
-      const tumorProb = tumorProbPercent.toFixed(1);
+      const probValue = detectionProb.toFixed(1);
       const confidence = confidencePercent.toFixed(1);
 
-      // Determine if positive (tumor detected) - threshold 54%
-      const isPositive = parseFloat(tumorProb) >= 54;
+      // Determine if positive
+      const isPositive = isPneumonia
+        ? (analysis.isPneumonia || analysis.prediction === 'malignant')
+        : parseFloat(probValue) >= 54;
 
-      // Get risk level from analysis or derive from tumor probability
-      const riskLevel = analysis.risk_level || analysis.riskAssessment || analysis.metadata?.risk_level ||
-        (parseFloat(tumorProb) >= 70 ? 'High' : parseFloat(tumorProb) >= 50 ? 'Medium' : 'Low');
+      // Risk level
+      const riskLevel = isPneumonia
+        ? (isPositive ? 'High' : 'Low')
+        : (parseFloat(probValue) >= 70 ? 'High' : parseFloat(probValue) >= 50 ? 'Medium' : 'Low');
 
-      console.log('📊 PDF Data:', { tumorProb, confidence, isPositive, riskLevel, rawAnalysis: analysis });
+      // Model info
+      const modelName = isPneumonia ? 'DenseNet121 + EfficientNet-B0 Ensemble' : 'EfficientNetB3';
+
+      console.log('📊 PDF Data:', { isPneumonia, probValue, confidence, isPositive, riskLevel });
 
       // Generate report HTML
       const html = `
@@ -727,13 +755,14 @@ router.get('/download-pdf/:sampleId',
 </head>
 <body>
   <div class="header">
-    <h1>PATHOLOGY REPORT</h1>
+    <h1>DIAGNOSTIC REPORT</h1>
     <div class="info">
       <div>
         <strong>RecursiaDx Digital Pathology Lab</strong><br>
         Email: lab@recursiadx.com | Phone: +91 99999 88888
       </div>
       <div style="text-align: right;">
+        <strong>Report Type:</strong> ${reportTitle}<br>
         <strong>Report ID:</strong> ${sample.sampleId || sample._id}<br>
         <strong>Date:</strong> ${new Date().toLocaleDateString()}
       </div>
@@ -767,7 +796,7 @@ router.get('/download-pdf/:sampleId',
     <div class="field-group">
       <div class="field">
         <div class="field-label">Sample Type</div>
-        <div class="field-value">${sample.sampleType || 'Tissue Biopsy'}</div>
+        <div class="field-value">${sample.sampleType || 'Brain MRI'}</div>
       </div>
       <div class="field">
         <div class="field-label">Collection Date</div>
@@ -789,9 +818,13 @@ router.get('/download-pdf/:sampleId',
     <div class="alert ${isPositive ? 'alert-positive' : 'alert-negative'}">
       <div class="alert-title">${isPositive ? '⚠️ Abnormal Findings' : '✓ Normal Findings'}</div>
       <p>
-        ${isPositive
-          ? `AI analysis detected potential abnormalities with ${confidence}% confidence. Tumor probability: ${tumorProb}%. Risk level: ${riskLevel}.`
-          : `AI analysis confirms normal findings with ${confidence}% confidence. No significant abnormalities detected.`
+        ${isPneumonia
+          ? (isPositive
+            ? `AI analysis detected pneumonia indicators with ${confidence}% confidence. ${probLabel}: ${probValue}%. Risk level: ${riskLevel}. Model: ${modelName}.`
+            : `AI analysis confirms normal chest X-ray with ${confidence}% confidence. No pneumonia detected. Model: ${modelName}.`)
+          : (isPositive
+            ? `AI analysis detected potential brain tumor with ${confidence}% confidence. ${probLabel}: ${probValue}%. Risk level: ${riskLevel}. Model: ${modelName}.`
+            : `AI analysis confirms normal brain MRI with ${confidence}% confidence. No tumor detected. Model: ${modelName}.`)
         }
       </p>
     </div>
@@ -805,8 +838,8 @@ router.get('/download-pdf/:sampleId',
         <div class="field-value">${confidence}%</div>
       </div>
       <div class="field">
-        <div class="field-label">Tumor Probability</div>
-        <div class="field-value">${tumorProb}%</div>
+        <div class="field-label">${probLabel}</div>
+        <div class="field-value">${probValue}%</div>
       </div>
       <div class="field">
         <div class="field-label">Risk Assessment</div>
@@ -822,21 +855,34 @@ router.get('/download-pdf/:sampleId',
   <div class="section">
     <div class="section-title">Clinical Recommendations</div>
     <ul style="padding-left: 20px; margin-top: 10px;">
-      ${isPositive ? `
-        <li style="margin-bottom: 8px;">Further histopathological examination recommended</li>
-        <li style="margin-bottom: 8px;">Consider clinical correlation with patient history</li>
-        <li style="margin-bottom: 8px;">Follow-up testing may be indicated</li>
-      ` : `
-        <li style="margin-bottom: 8px;">No immediate follow-up required based on current findings</li>
-        <li style="margin-bottom: 8px;">Continue routine screening as per clinical guidelines</li>
-        <li style="margin-bottom: 8px;">Consult with ordering physician for clinical correlation</li>
-      `}
+      ${isPneumonia
+        ? (isPositive ? `
+          <li style="margin-bottom: 8px;">Chest CT scan recommended for further evaluation</li>
+          <li style="margin-bottom: 8px;">Sputum culture and sensitivity testing advised</li>
+          <li style="margin-bottom: 8px;">Consider clinical correlation with blood work (CBC, CRP)</li>
+          <li style="margin-bottom: 8px;">Follow-up chest X-ray in 4-6 weeks to confirm resolution</li>
+        ` : `
+          <li style="margin-bottom: 8px;">No pneumonia detected — no immediate follow-up required</li>
+          <li style="margin-bottom: 8px;">Continue routine monitoring if symptoms persist</li>
+          <li style="margin-bottom: 8px;">Consult with ordering physician for clinical correlation</li>
+        `)
+        : (isPositive ? `
+          <li style="margin-bottom: 8px;">Referral to neurosurgery/neuro-oncology recommended</li>
+          <li style="margin-bottom: 8px;">Contrast-enhanced MRI for detailed characterization</li>
+          <li style="margin-bottom: 8px;">Consider biopsy for histopathological confirmation</li>
+          <li style="margin-bottom: 8px;">Correlate with clinical symptoms and neurological examination</li>
+        ` : `
+          <li style="margin-bottom: 8px;">No tumor detected — routine follow-up as clinically indicated</li>
+          <li style="margin-bottom: 8px;">Continue periodic screening if risk factors are present</li>
+          <li style="margin-bottom: 8px;">Consult with ordering physician for clinical correlation</li>
+        `)
+      }
     </ul>
   </div>
 
   <div class="footer">
     <p><strong>RecursiaDx AI-Powered Digital Pathology Platform</strong></p>
-    <p>This report was generated using AI-assisted analysis. All findings should be confirmed by a qualified pathologist.</p>
+    <p>This report was generated using AI-assisted analysis (${modelName}). All findings should be confirmed by a qualified ${isPneumonia ? 'radiologist' : 'neuroradiologist'}.</p>
     <p>HIPAA Compliant | Real-time AI Processing | For professional use only</p>
   </div>
 </body>
