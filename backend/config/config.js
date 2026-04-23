@@ -13,11 +13,9 @@ const config = {
 
   // Database configuration
   database: {
-    uri: process.env.MONGODB_URI || 'mongodb://localhost:27017/recursia-dx',
-    testUri: process.env.MONGODB_TEST_URI || 'mongodb://localhost:27017/recursia-dx-test',
+    uri: process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/recursia-dx',
+    testUri: process.env.MONGODB_TEST_URI || 'mongodb://127.0.0.1:27017/recursia-dx-test',
     options: {
-      useNewUrlParser: true,
-      useUnifiedTopology: true,
       maxPoolSize: 10,
       serverSelectionTimeoutMS: 5000,
       socketTimeoutMS: 45000

@@ -246,9 +246,7 @@ analysisSchema.virtual('confidenceLevel').get(function() {
   return 'Very Low';
 });
 
-// Indexes for performance
-analysisSchema.index({ sampleId: 1 });
-analysisSchema.index({ analysisId: 1 });
+// Indexes for performance (sampleId and analysisId indexes auto-created by unique:true above)
 analysisSchema.index({ analysisType: 1 });
 analysisSchema.index({ 'results.overall.category': 1 });
 analysisSchema.index({ 'validation.approvalStatus': 1 });

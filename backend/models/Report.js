@@ -300,8 +300,7 @@ reportSchema.virtual('qualityScore').get(function() {
   return Math.round(average * 100) / 100;
 });
 
-// Indexes for performance
-reportSchema.index({ reportId: 1 });
+// Indexes for performance (reportId index auto-created by unique:true above)
 reportSchema.index({ sampleId: 1 });
 reportSchema.index({ analysisId: 1 });
 reportSchema.index({ reportType: 1 });
