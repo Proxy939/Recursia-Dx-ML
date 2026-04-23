@@ -71,6 +71,7 @@ export function SignupPage({ onSignup, onBackToHome, onGoToLogin }) {
   ]
 
   const countries = [
+    { value: 'in', label: 'India' },
     { value: 'us', label: 'United States' },
     { value: 'ca', label: 'Canada' },
     { value: 'uk', label: 'United Kingdom' },
