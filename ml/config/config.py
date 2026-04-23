@@ -52,7 +52,7 @@ class Config:
     PREDICTION_TIMEOUT = 30  # seconds
     
     # Security
-    ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'tiff', 'tif', 'bmp'}
+    ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'tiff', 'tif', 'bmp', 'dcm'}
     MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16MB
     
     @classmethod

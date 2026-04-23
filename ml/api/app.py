@@ -261,16 +261,16 @@ def predict_tumor():
         start_time = time.time()
         
         try:
-            # Load and preprocess image
-            image = Image.open(filepath)
-            image_array = np.array(image.convert('RGB'))
-            
-            # Apply enhancement if requested
-            if enhance_image:
-                image_array = enhance_medical_image(image_array)
-            
             # Make prediction based on image type
             if image_type == 'tissue':
+                # Load and preprocess image (PIL — works for standard image formats)
+                image = Image.open(filepath)
+                image_array = np.array(image.convert('RGB'))
+                
+                # Apply enhancement if requested
+                if enhance_image:
+                    image_array = enhance_medical_image(image_array)
+                
                 # Proxy to Brain Tumor API for MRI analysis
                 try:
                     with open(filepath, 'rb') as img_file:
@@ -312,8 +312,11 @@ def predict_tumor():
             elif image_type == 'pneumonia':
                 # Proxy to Pneumonia API for chest X-ray analysis
                 try:
+                    # Detect correct MIME type (DICOM vs standard image)
+                    is_dicom = filename.lower().endswith('.dcm')
+                    mime_type = 'application/dicom' if is_dicom else 'image/png'
                     with open(filepath, 'rb') as img_file:
-                        files = {'image': (filename, img_file, 'image/png')}
+                        files = {'image': (filename, img_file, mime_type)}
                         pn_response = http_requests.post(
                             f"{PNEUMONIA_API_URL}/analyze",
                             files=files,
@@ -360,8 +363,15 @@ def predict_tumor():
             if not validate_prediction_data(prediction_result, image_type):
                 raise ValueError("Invalid prediction result")
             
-            # Get image info
-            image_info = get_image_info(filepath)
+            # Get image info (safe for DICOM — PIL can't open .dcm)
+            if filepath.lower().endswith('.dcm'):
+                image_info = {
+                    'format': 'DICOM',
+                    'size': os.path.getsize(filepath),
+                    'filename': os.path.basename(filepath)
+                }
+            else:
+                image_info = get_image_info(filepath)
             
             # Prepare response
             response_data = {
@@ -548,16 +558,15 @@ def batch_predict():
                 continue
             
             try:
-                # Process individual image
-                image = Image.open(file.stream)
-                image_array = np.array(image.convert('RGB'))
-                
-                if enhance_images:
-                    image_array = enhance_medical_image(image_array)
-                
                 # Route based on image type
                 if image_type == 'tissue':
-                    # Proxy to Brain Tumor API for MRI analysis
+                    # For tissue/brain MRI: preprocess with PIL then proxy to Brain Tumor API
+                    image = Image.open(file.stream)
+                    image_array = np.array(image.convert('RGB'))
+                    
+                    if enhance_images:
+                        image_array = enhance_medical_image(image_array)
+                    
                     try:
                         import io
                         img_bytes = io.BytesIO()
@@ -614,14 +623,16 @@ def batch_predict():
                         })
                     
                 elif image_type == 'pneumonia':
-                    # Proxy to Pneumonia API for chest X-ray analysis
+                    # For pneumonia: send RAW file bytes directly to Pneumonia API
+                    # (Pneumonia API has its own DICOM handler via pydicom — do NOT use PIL)
                     try:
                         import io
-                        img_bytes = io.BytesIO()
-                        Image.fromarray(image_array).save(img_bytes, format='PNG')
-                        img_bytes.seek(0)
+                        raw_bytes = file.stream.read()
+                        img_bytes = io.BytesIO(raw_bytes)
+                        is_dicom = file.filename.lower().endswith('.dcm')
+                        mime_type = 'application/dicom' if is_dicom else 'image/png'
                         
-                        files_to_send = {'image': (file.filename, img_bytes, 'image/png')}
+                        files_to_send = {'image': (file.filename, img_bytes, mime_type)}
                         pn_response = http_requests.post(
                             f"{PNEUMONIA_API_URL}/analyze",
                             files=files_to_send,

@@ -22,16 +22,24 @@ const storage = multer.diskStorage({
   }
 });
 
-// File filter for medical images
+// File filter for medical images (including DICOM)
 const fileFilter = (req, file, cb) => {
-  const allowedTypes = /jpeg|jpg|png|tiff|bmp|gif/;
-  const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-  const mimetype = allowedTypes.test(file.mimetype);
+  const ext = path.extname(file.originalname).toLowerCase();
+
+  // Allow DICOM files (.dcm) explicitly — they have no standard MIME type
+  if (ext === '.dcm') {
+    return cb(null, true);
+  }
+
+  // Allow standard image formats
+  const allowedImageTypes = /jpeg|jpg|png|tiff|bmp|gif/;
+  const extname = allowedImageTypes.test(ext);
+  const mimetype = allowedImageTypes.test(file.mimetype);
 
   if (mimetype && extname) {
     return cb(null, true);
   } else {
-    cb(new Error('Only medical image files are allowed (JPEG, PNG, TIFF, BMP, GIF)'));
+    cb(new Error('Only medical image files are allowed (JPEG, PNG, BMP, DICOM/.dcm)'));
   }
 };
 

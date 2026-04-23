@@ -87,11 +87,11 @@ export function SampleUpload({ onNext, onSampleCreated }) {
   const handleFileUpload = (event) => {
     const files = Array.from(event.target.files)
     
-    // Validate file types (no TIFF)
+    // Validate file types (no TIFF, no SVS/NDPI)
     const validFiles = files.filter(file => {
       const ext = file.name.toLowerCase().split('.').pop()
       if (['tiff', 'tif', 'svs', 'ndpi'].includes(ext)) {
-        toast.error(`${file.name}: ${ext.toUpperCase()} format is not supported. Use JPEG, PNG, or BMP.`)
+        toast.error(`${file.name}: ${ext.toUpperCase()} format is not supported. Use JPEG, PNG, BMP, or DICOM (.dcm).`)
         return false
       }
       return true
@@ -100,29 +100,38 @@ export function SampleUpload({ onNext, onSampleCreated }) {
     if (validFiles.length === 0) return
     
     // Add files to upload queue
-    const newFiles = validFiles.map(file => ({
-      id: Date.now() + Math.random(),
-      file: file,
-      name: file.name,
-      size: file.size,
-      type: file.type,
-      uploadedAt: new Date().toISOString(),
-      preview: URL.createObjectURL(file)
-    }))
+    const newFiles = validFiles.map(file => {
+      const isDicom = file.name.toLowerCase().endsWith('.dcm')
+      return {
+        id: Date.now() + Math.random(),
+        file: file,
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        isDicom: isDicom,
+        uploadedAt: new Date().toISOString(),
+        // DICOM files can't be previewed in browser — use null
+        preview: isDicom ? null : URL.createObjectURL(file)
+      }
+    })
     
     setUploadedFiles(prev => [...prev, ...newFiles])
     
     // Auto-detect image type from filename
     const allFiles = [...uploadedFiles, ...newFiles]
     const fileNames = allFiles.map(f => f.name.toLowerCase()).join(' ')
-    const isPneumonia = fileNames.includes('xray') || fileNames.includes('x-ray') || 
+    // DICOM files from chest X-rays → always route to pneumonia detection
+    const hasDicom = allFiles.some(f => f.isDicom)
+    const isPneumonia = hasDicom ||
+                        fileNames.includes('xray') || fileNames.includes('x-ray') || 
                         fileNames.includes('chest') || fileNames.includes('pneumonia') || 
                         fileNames.includes('lung') || fileNames.includes('cxr')
     const detectedType = isPneumonia ? 'pneumonia' : 'tissue'
     
     setPatientData(prev => ({ ...prev, imageType: detectedType }))
     
-    toast.success(`${validFiles.length} file(s) selected — auto-detected as ${isPneumonia ? 'Chest X-ray (Pneumonia)' : 'Brain MRI (Tumor Detection)'}`)
+    const typeLabel = isPneumonia ? 'Chest X-ray / DICOM (Pneumonia Detection)' : 'Brain MRI (Tumor Detection)'
+    toast.success(`${validFiles.length} file(s) selected — auto-detected as ${typeLabel}`)
   }
 
   const removeFile = (fileId) => {
@@ -206,10 +215,17 @@ export function SampleUpload({ onNext, onSampleCreated }) {
   }
 
   const handleSubmit = async () => {
-    // Validation
+    // Validation - auto-fill patient data if not provided
     if (!patientData.patientInfo.patientId || !patientData.patientInfo.name) {
-      toast.error("Please fill in required patient information (Patient ID and Name)")
-      return
+      // Auto-fill instead of blocking
+      setPatientData(prev => ({
+        ...prev,
+        patientInfo: {
+          ...prev.patientInfo,
+          patientId: prev.patientInfo.patientId || `PT-${Date.now()}`,
+          name: prev.patientInfo.name || 'Anonymous Patient'
+        }
+      }))
     }
     
     if (uploadedFiles.length === 0) {
@@ -224,11 +240,13 @@ export function SampleUpload({ onNext, onSampleCreated }) {
       // Prepare form data
       const formData = new FormData()
       
-      // Convert age to number and ensure proper data types
+      // Convert age to number and ensure proper data types, auto-fill missing fields
       const processedPatientData = {
         ...patientData,
         patientInfo: {
           ...patientData.patientInfo,
+          patientId: patientData.patientInfo.patientId || `PT-${Date.now()}`,
+          name: patientData.patientInfo.name || 'Anonymous Patient',
           age: parseInt(patientData.patientInfo.age) || 0
         }
       }
@@ -553,12 +571,16 @@ export function SampleUpload({ onNext, onSampleCreated }) {
                   <span className="text-xs text-muted-foreground">
                     JPEG, PNG, BMP up to 50MB each (max 10 files)
                   </span>
+                  <br />
+                  <span className="text-xs font-medium text-blue-600">
+                    🫁 DICOM (.dcm) also supported for Pneumonia Detection
+                  </span>
                 </Label>
                 <Input
                   id="image-upload"
                   type="file"
                   multiple
-                  accept="image/jpeg,image/png,image/bmp,.jpg,.jpeg,.png,.bmp"
+                  accept="image/jpeg,image/png,image/bmp,.jpg,.jpeg,.png,.bmp,.dcm,application/dicom"
                   className="hidden"
                   onChange={handleFileUpload}
                 />
@@ -584,19 +606,26 @@ export function SampleUpload({ onNext, onSampleCreated }) {
                   <Label className="text-sm font-medium">Selected Files ({uploadedFiles.length})</Label>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-60 overflow-y-auto">
                     {uploadedFiles.map((file) => (
-                      <div key={file.id} className="flex items-center justify-between p-3 border rounded-lg">
+                      <div key={file.id} className={`flex items-center justify-between p-3 border rounded-lg ${file.isDicom ? 'border-blue-200 bg-blue-50/50' : ''}`}>
                         <div className="flex items-center gap-3">
-                          {file.preview && (
+                          {file.isDicom ? (
+                            // DICOM files can't be previewed in browser
+                            <div className="w-10 h-10 rounded bg-blue-100 border border-blue-300 flex flex-col items-center justify-center">
+                              <span className="text-[9px] font-bold text-blue-700 leading-tight">DICOM</span>
+                              <span className="text-[8px] text-blue-500">.dcm</span>
+                            </div>
+                          ) : file.preview ? (
                             <img 
                               src={file.preview} 
                               alt={file.name}
                               className="w-10 h-10 object-cover rounded"
                             />
-                          )}
+                          ) : null}
                           <div>
                             <p className="text-sm font-medium truncate max-w-32">{file.name}</p>
                             <p className="text-xs text-muted-foreground">
                               {(file.size / 1024 / 1024).toFixed(2)} MB
+                              {file.isDicom && <span className="ml-1 text-blue-600 font-medium">• Chest X-ray DICOM</span>}
                             </p>
                           </div>
                         </div>
@@ -700,7 +729,7 @@ export function SampleUpload({ onNext, onSampleCreated }) {
               <Button 
                 onClick={handleSubmit} 
                 className="w-full"
-                disabled={isAnalyzing || !patientData.patientInfo.patientId || !patientData.patientInfo.name || !patientData.imageType || uploadedFiles.length === 0}
+                disabled={isAnalyzing || uploadedFiles.length === 0}
               >
                 {isAnalyzing ? (
                   <>

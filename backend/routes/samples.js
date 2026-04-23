@@ -315,7 +315,33 @@ router.get('/demo-sample', catchAsync(async (req, res) => {
 
 // Upload sample with images and ML analysis (auth temporarily disabled for testing)
 router.post('/upload-with-analysis',
-  upload.array('images', 10), // Allow up to 10 images
+  (req, res, next) => {
+    // Wrap multer to catch file filter errors gracefully
+    upload.array('images', 10)(req, res, (err) => {
+      if (err) {
+        console.error('📁 Multer upload error:', err.message);
+        // Handle multer-specific errors
+        if (err.code === 'LIMIT_FILE_SIZE') {
+          return res.status(413).json({
+            success: false,
+            message: 'File too large. Maximum size is 50MB per file.'
+          });
+        }
+        if (err.code === 'LIMIT_FILE_COUNT' || err.code === 'LIMIT_UNEXPECTED_FILE') {
+          return res.status(400).json({
+            success: false,
+            message: 'Too many files. Maximum is 10 files per upload.'
+          });
+        }
+        // File filter rejection (invalid file type)
+        return res.status(400).json({
+          success: false,
+          message: err.message || 'Invalid file type. Supported: JPEG, PNG, BMP, DICOM (.dcm)'
+        });
+      }
+      next();
+    });
+  },
   catchAsync(async (req, res) => {
     console.log('🚀 UPLOAD ROUTE REACHED - Auth Disabled!');
     try {
@@ -457,6 +483,23 @@ router.post('/upload-with-analysis',
                 metadata: mlResult
               };
               console.log(`🩸 Blood analysis data structured for ${file.filename}:`, JSON.stringify(imageData.mlAnalysis, null, 2));
+            } else if (imageType === 'pneumonia' || imageType === 'lung' || imageType === 'xray') {
+              // Pneumonia analysis - chest X-ray
+              imageData.mlAnalysis = {
+                prediction: prediction.is_pneumonia ? 'malignant' : 'benign',
+                confidence: Number(prediction.confidence) || 0.5,
+                riskAssessment: prediction.is_pneumonia ? 'high' : 'low',
+                processingTime: prediction.processing_time || 0,
+                imageId: prediction.image_id || file.filename,
+                modelVersion: 'DenseNet121+EfficientNetB0-v1.0',
+                analyzedAt: new Date(),
+                isPneumonia: prediction.is_pneumonia || false,
+                severity: prediction.severity || 'Unknown',
+                affectedAreaPct: prediction.affected_area_pct || 0,
+                confidenceTier: prediction.confidence_tier || {},
+                classProbabilities: prediction.probabilities || {},
+                metadata: mlResult
+              };
             } else {
               // Tissue analysis - tumor detection (4-class: glioma, meningioma, pituitary, notumor)
               const mapPrediction = (predicted_class) => {
