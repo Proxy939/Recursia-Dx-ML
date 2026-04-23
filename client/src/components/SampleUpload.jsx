@@ -25,7 +25,7 @@ export function SampleUpload({ onNext, onSampleCreated }) {
       contactNumber: '',
       address: ''
     },
-    imageType: '', // tissue (brain MRI) or pneumonia (chest X-ray)
+    imageType: 'tissue', // auto-detected: tissue (brain MRI) or pneumonia (chest X-ray)
     specimenDetails: {
       organ: '',
       site: '',
@@ -87,8 +87,20 @@ export function SampleUpload({ onNext, onSampleCreated }) {
   const handleFileUpload = (event) => {
     const files = Array.from(event.target.files)
     
+    // Validate file types (no TIFF)
+    const validFiles = files.filter(file => {
+      const ext = file.name.toLowerCase().split('.').pop()
+      if (['tiff', 'tif', 'svs', 'ndpi'].includes(ext)) {
+        toast.error(`${file.name}: ${ext.toUpperCase()} format is not supported. Use JPEG, PNG, or BMP.`)
+        return false
+      }
+      return true
+    })
+    
+    if (validFiles.length === 0) return
+    
     // Add files to upload queue
-    const newFiles = files.map(file => ({
+    const newFiles = validFiles.map(file => ({
       id: Date.now() + Math.random(),
       file: file,
       name: file.name,
@@ -99,7 +111,18 @@ export function SampleUpload({ onNext, onSampleCreated }) {
     }))
     
     setUploadedFiles(prev => [...prev, ...newFiles])
-    toast.success(`${files.length} file(s) selected for upload`)
+    
+    // Auto-detect image type from filename
+    const allFiles = [...uploadedFiles, ...newFiles]
+    const fileNames = allFiles.map(f => f.name.toLowerCase()).join(' ')
+    const isPneumonia = fileNames.includes('xray') || fileNames.includes('x-ray') || 
+                        fileNames.includes('chest') || fileNames.includes('pneumonia') || 
+                        fileNames.includes('lung') || fileNames.includes('cxr')
+    const detectedType = isPneumonia ? 'pneumonia' : 'tissue'
+    
+    setPatientData(prev => ({ ...prev, imageType: detectedType }))
+    
+    toast.success(`${validFiles.length} file(s) selected — auto-detected as ${isPneumonia ? 'Chest X-ray (Pneumonia)' : 'Brain MRI (Tumor Detection)'}`)
   }
 
   const removeFile = (fileId) => {
@@ -184,8 +207,8 @@ export function SampleUpload({ onNext, onSampleCreated }) {
 
   const handleSubmit = async () => {
     // Validation
-    if (!patientData.patientInfo.patientId || !patientData.patientInfo.name || !patientData.imageType) {
-      toast.error("Please fill in required patient information and image type")
+    if (!patientData.patientInfo.patientId || !patientData.patientInfo.name) {
+      toast.error("Please fill in required patient information (Patient ID and Name)")
       return
     }
     
@@ -434,33 +457,44 @@ export function SampleUpload({ onNext, onSampleCreated }) {
 
               <div className="space-y-3">
                 <Label className="flex items-center gap-2">
-                  Image Type *
+                  Image Type
                   <Badge variant="outline" className="text-xs">
-                    For ML Analysis
+                    Auto-Detected
                   </Badge>
                 </Label>
+                <div className="flex items-center gap-3 p-3 border rounded-lg bg-muted/30">
+                  {patientData.imageType === 'pneumonia' ? (
+                    <>
+                      <Stethoscope className="h-5 w-5 text-orange-500" />
+                      <div>
+                        <p className="text-sm font-medium">Chest X-ray (Pneumonia Detection)</p>
+                        <p className="text-xs text-muted-foreground">DenseNet121 + EfficientNet-B0 Ensemble</p>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <Brain className="h-5 w-5 text-blue-500" />
+                      <div>
+                        <p className="text-sm font-medium">Brain MRI (Tumor Detection)</p>
+                        <p className="text-xs text-muted-foreground">EfficientNetB3 model</p>
+                      </div>
+                    </>
+                  )}
+                  <Badge variant="secondary" className="ml-auto text-xs">Auto</Badge>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Image type is auto-detected from filenames. Include keywords like "xray", "chest", or "lung" for pneumonia detection.
+                  You can also override it below.
+                </p>
                 <Select value={patientData.imageType} onValueChange={(value) => setPatientData(prev => ({...prev, imageType: value}))}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select image type for AI analysis" />
+                  <SelectTrigger className="text-xs h-8">
+                    <SelectValue placeholder="Override detection" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="tissue">
-                      <div className="flex items-center gap-2">
-                        <Brain className="h-4 w-4" />
-                        <span>Tissue Image (Histopathology)</span>
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="pneumonia">
-                      <div className="flex items-center gap-2">
-                        <Stethoscope className="h-4 w-4" />
-                        <span>Chest X-ray (Pneumonia Detection)</span>
-                      </div>
-                    </SelectItem>
+                    <SelectItem value="tissue">Brain MRI / Tissue (Tumor Detection)</SelectItem>
+                    <SelectItem value="pneumonia">Chest X-ray (Pneumonia Detection)</SelectItem>
                   </SelectContent>
                 </Select>
-                <p className="text-xs text-muted-foreground">
-                  Select the type of medical image you will upload for AI analysis
-                </p>
               </div>
 
               <div className="space-y-3">
@@ -517,14 +551,14 @@ export function SampleUpload({ onNext, onSampleCreated }) {
                   <span className="text-sm font-medium">Click to upload medical images</span>
                   <br />
                   <span className="text-xs text-muted-foreground">
-                    JPEG, PNG, TIFF, BMP up to 50MB each (max 10 files)
+                    JPEG, PNG, BMP up to 50MB each (max 10 files)
                   </span>
                 </Label>
                 <Input
                   id="image-upload"
                   type="file"
                   multiple
-                  accept="image/*"
+                  accept="image/jpeg,image/png,image/bmp,.jpg,.jpeg,.png,.bmp"
                   className="hidden"
                   onChange={handleFileUpload}
                 />
@@ -583,70 +617,7 @@ export function SampleUpload({ onNext, onSampleCreated }) {
           </Card>
         </TabsContent>
 
-        <TabsContent value="sample-upload" className="space-y-6">
-          {/* <div className="grid gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Upload className="h-5 w-5" />
-                  Upload Medical Images
-                </CardTitle>
-                <CardDescription>
-                  Upload tissue samples for pathological analysis
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 text-center">
-                  <Upload className="mx-auto h-12 w-12 text-muted-foreground/50 mb-4" />
-                  <Label htmlFor="tissue-upload" className="cursor-pointer">
-                    <span className="text-sm font-medium">Click to upload tissue samples</span>
-                    <br />
-                    <span className="text-xs text-muted-foreground">
-                      SVS, TIFF, NDPI up to 500MB each
-                    </span>
-                  </Label>
-                  <Input
-                    id="tissue-upload"
-                    type="file"
-                    multiple
-                    accept=".svs,.tiff,.ndpi,image/*"
-                    className="hidden"
-                    onChange={handleFileUpload}
-                  />
-                </div>
-              </CardContent>
-            </Card>
-          </div> */}
 
-          {uploadedFiles.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <FileImage className="h-5 w-5" />
-                  Uploaded Files ({uploadedFiles.length})
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {uploadedFiles.map((file) => (
-                    <div key={file.id} className="flex items-center justify-between p-3 border rounded-lg">
-                      <div className="flex items-center gap-3">
-                        <CheckCircle2 className="h-4 w-4 text-green-500" />
-                        <div>
-                          <p className="text-sm font-medium">{file.name}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {(file.size / 1024 / 1024).toFixed(2)} MB
-                          </p>
-                        </div>
-                      </div>
-                      <Badge variant="secondary">Uploaded</Badge>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-        </TabsContent>
 
         <TabsContent value="review" className="space-y-6">
           <Card>
@@ -668,17 +639,17 @@ export function SampleUpload({ onNext, onSampleCreated }) {
                 </div>
                 <div>
 
-                  <Label className="text-sm font-medium">Image Type</Label>
+                  <Label className="text-sm font-medium">Image Type (Auto-Detected)</Label>
                   <p className="text-sm text-muted-foreground">
                     {patientData.imageType === 'tissue' ? (
                       <span className="flex items-center gap-1">
                         <Brain className="h-3 w-3" />
-                        Tissue Image (Histopathology)
+                        Brain MRI (Tumor Detection) — EfficientNetB3
                       </span>
                     ) : patientData.imageType === 'pneumonia' ? (
                       <span className="flex items-center gap-1">
                         <Stethoscope className="h-3 w-3" />
-                        Chest X-ray (Pneumonia Detection)
+                        Chest X-ray (Pneumonia Detection) — DenseNet121 + EfficientNet-B0
                       </span>
                     ) : 'Not selected'}
                   </p>

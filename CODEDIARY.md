@@ -3,7 +3,7 @@
 > **Purpose**: This is the living knowledge base of the entire RecursiaDx project.
 > It is auto-updated on every `git commit` via a pre-commit hook.
 > AI agents and developers should read this file before making any changes to the codebase.
-> **Last auto-updated**: 2026-04-24T02:23:38+05:30
+> **Last auto-updated**: 2026-04-24T02:27:51+05:30
 
 ---
 
@@ -376,6 +376,9 @@ BRAIN_TUMOR_MODEL_PATH=models/weights/brain_tumor_efficientnetb3.h5
 <!-- AUTO-UPDATED BY PRE-COMMIT HOOK — DO NOT EDIT BELOW THIS LINE MANUALLY -->
 <!-- CHANGELOG_START -->
 
+### [2026-04-24 02:27] — Commit (1 file(s) changed)
+- **Frontend**: client/src/components/SampleUpload.jsx,
+
 ### [2026-04-24 02:23] — Commit (7 file(s) changed)
 - **Frontend**: client/src/components/AnalysisDashboard.jsx,client/src/components/DashboardSidebar.jsx,client/src/components/HomePage.jsx,client/src/components/NavigationHeader.jsx,client/src/components/ReportGeneration.jsx,
 
@@ -463,5 +466,13 @@ BRAIN_TUMOR_MODEL_PATH=models/weights/brain_tumor_efficientnetb3.h5
 - **ResultsReview.jsx**: Replaced `isBloodSample` with `isPneumonia`. Updated result labels from "Malaria Detection" to "Pneumonia Detection" and "Cancer Detection" to "Brain Tumor Detection". Replaced `Droplets` icon with `Stethoscope`.
 - **ReportGeneration.jsx**: Same `isBloodSample` → `isPneumonia` migration. Updated sample icon and probability label text.
 - **Zero remaining references**: Verified via `grep` that no `blood`, `malaria`, `platelet`, `smear`, `gigapath`, `YOLOv8`, `InceptionV3`, or `AttentionMIL` strings remain in `client/src/`.
+
+### [2026-04-24 02:25] — Upload Fix: TIFF Removal + Auto-Detection
+- **TIFF Format Removed**: `.tiff`, `.tif`, `.svs`, `.ndpi` file formats are now rejected with an error toast. Accepted formats: JPEG, PNG, BMP.
+- **Auto-Detection**: Image type is now auto-detected from filenames. Keywords like "xray", "chest", "lung", "cxr", "pneumonia" → Pneumonia pipeline. Everything else → Brain Tumor pipeline.
+- **Manual Override**: Small override dropdown preserved below the auto-detection badge for edge cases.
+- **Default Type**: `imageType` defaults to `'tissue'` instead of empty string `''`, preventing the old validation error.
+- **Dead Code Removed**: Duplicate `TabsContent value="sample-upload"` block (fully commented out, containing SVS/TIFF/NDPI references) was deleted.
+- **File Input Restrict**: `accept` attribute changed from `image/*` to `image/jpeg,image/png,image/bmp,.jpg,.jpeg,.png,.bmp`.
 
 <!-- CHANGELOG_END -->
