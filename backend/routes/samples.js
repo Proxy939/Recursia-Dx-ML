@@ -20,7 +20,7 @@ async function generateRealHeatmap(imagePath, imageId) {
       formData.append('image', fs.createReadStream(imagePath));
 
       // Call ML service to generate real heatmap
-      const response = await fetch('http://localhost:5000/generate_heatmap', {
+      const response = await fetch('http://localhost:5001/generate_heatmap', {
         method: 'POST',
         body: formData,
         timeout: 30000
@@ -87,7 +87,7 @@ router.post('/test-upload', (req, res) => {
 // Test ML service health status (no auth required for debugging)
 router.get('/ml-health-test', catchAsync(async (req, res) => {
   try {
-    const response = await fetch('http://localhost:5000/health', {
+    const response = await fetch('http://localhost:5001/health', {
       method: 'GET',
       timeout: 5000
     });
@@ -104,7 +104,7 @@ router.get('/ml-health-test', catchAsync(async (req, res) => {
         mlService: {
           status: 'healthy',
           details: result,
-          url: 'http://localhost:5000'
+          url: 'http://localhost:5001'
         }
       }
     });
@@ -118,8 +118,8 @@ router.get('/ml-health-test', catchAsync(async (req, res) => {
         mlService: {
           status: 'unavailable',
           error: error.message,
-          url: 'http://localhost:5000',
-          suggestion: 'Please ensure the ML API server is running on port 5000'
+          url: 'http://localhost:5001',
+          suggestion: 'Please ensure the ML API server is running on port 5001'
         }
       }
     });
@@ -351,14 +351,15 @@ router.post('/upload-with-analysis',
       console.log(`🔍 DEBUG: sampleData.imageType=${sampleData.imageType}, req.body.imageType=${req.body.imageType}, final imageType=${imageType}`);
 
       // Set sampleType based on imageType selection
-      sampleData.sampleType = imageType === 'blood' ? 'Blood Smear' : 'Tissue Biopsy';
+      sampleData.sampleType = (imageType === 'pneumonia' || imageType === 'lung' || imageType === 'xray') ? 'Chest X-ray' :
+                               'Tissue Biopsy';
 
       // CRITICAL: Check if ML service is available
       const mlHealthCheck = await MLService.checkHealth();
       if (!mlHealthCheck.healthy) {
         return res.status(503).json({
           success: false,
-          message: 'ML service is not available. Please start the ML server on port 5000.',
+          message: 'ML service is not available. Please start the ML server on port 5001.',
           error: 'ML_SERVICE_UNAVAILABLE'
         });
       }
@@ -503,8 +504,16 @@ router.post('/upload-with-analysis',
               console.log(`⚠️ Heatmap generation skipped for ${file.filename}: ${heatmapResult.error}`);
               // Don't add mock heatmap - leave it undefined
             }
-          } else {
-            console.log(`⏭️ Skipping heatmap generation for blood smear image`);
+          } else if (imageType === 'pneumonia' || imageType === 'lung' || imageType === 'xray') {
+            // Pneumonia analysis returns its own heatmap from the API
+            if (mlResult && mlResult.prediction && mlResult.prediction.heatmap_base64) {
+              imageData.heatmap = {
+                base64: `data:image/png;base64,${mlResult.prediction.heatmap_base64}`,
+                type: 'gradcam',
+                colormap: 'jet'
+              };
+              console.log(`✅ Pneumonia Grad-CAM heatmap stored for ${file.filename}`);
+            }
           }
 
           processedImages.push(imageData);

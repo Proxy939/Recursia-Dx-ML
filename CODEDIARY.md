@@ -3,7 +3,7 @@
 > **Purpose**: This is the living knowledge base of the entire RecursiaDx project.
 > It is auto-updated on every `git commit` via a pre-commit hook.
 > AI agents and developers should read this file before making any changes to the codebase.
-> **Last auto-updated**: 2026-04-24T01:39:00+05:30
+> **Last auto-updated**: 2026-04-24T02:05:40+05:30
 
 ---
 
@@ -25,14 +25,12 @@
 ## Project Overview
 
 **RecursiaDx** is a medical AI diagnostic platform for clinical pathology analysis.
-It supports three types of medical image analysis:
+It supports two types of medical image analysis:
 
 | Analysis Type | Input | Model | Output |
 |---|---|---|---|
 | Brain MRI | `.jpg/.png` | EfficientNetB3 | Glioma / Meningioma / Pituitary / No Tumor |
 | Chest X-ray (Pneumonia) | `.jpg/.png/.dcm` | DenseNet121 + EfficientNet-B0 Ensemble | Normal / Pneumonia + Severity + Heatmap |
-| Blood Smear (Malaria) | `.jpg/.png` | InceptionV3 | Infected / Uninfected |
-| Blood Smear (Platelet) | `.jpg/.png` | YOLOv8 | Platelet count + bounding boxes |
 
 ---
 
@@ -60,7 +58,6 @@ User → React Client (5173)
      → ML Gateway app.py (5001)
      → brain_tumor_api.py (5002)  ← [if image_type = 'tissue']
      → pneumonia_api.py (5003)    ← [if image_type = 'pneumonia']
-     → InceptionV3 / YOLOv8      ← [if image_type = 'blood']
 ```
 
 ---
@@ -144,8 +141,6 @@ Recursia-Dx-ML--main/
 │   │   ├── brain_tumor_api.py ← EfficientNetB3 API (port 5002)
 │   │   └── pneumonia_api.py   ← DenseNet121+EfficientNet-B0 API (port 5003)
 │   ├── models/
-│   │   ├── malaria_predictor.py   ← InceptionV3 inference
-│   │   ├── platelet_counter.py    ← YOLOv8 inference
 │   │   └── weights/
 │   │       ├── brain_tumor_efficientnetb3.h5  ← Trained model (72MB)
 │   │       └── training_history.json          ← Training metrics
@@ -212,17 +207,7 @@ Recursia-Dx-ML--main/
 - **API**: `POST http://localhost:5003/analyze` with `image` (multipart)
 - **Response fields**: `predicted_class`, `confidence_percent`, `is_pneumonia`, `per_model`, `severity`, `affected_area_pct`, `heatmap_base64`, `risk_level`
 
-### 3. Malaria Detector — InceptionV3
-- **File**: `ml/models/weights/malaria_inceptionv3.pth`
-- **Framework**: PyTorch
-- **Classes**: `Parasitized`, `Uninfected`
-- **API**: Handled directly in `ml/api/app.py` when `image_type = 'blood'`
 
-### 4. Platelet Counter — YOLOv8
-- **File**: `ml/models/weights/platelet_yolov8.pt`
-- **Framework**: PyTorch (Ultralytics)
-- **Output**: Platelet count + bounding boxes
-- **API**: Handled directly in `ml/api/app.py` when `image_type = 'blood'`
 
 ---
 
@@ -267,8 +252,6 @@ if image_type == 'tissue':
     → proxy to brain_tumor_api.py (port 5002)
 elif image_type == 'pneumonia':
     → proxy to pneumonia_api.py (port 5003)
-elif image_type == 'blood':
-    → run malaria_predictor + platelet_counter locally
 ```
 
 ### Brain Tumor API (Python — Port 5002)
@@ -392,6 +375,22 @@ BRAIN_TUMOR_MODEL_PATH=models/weights/brain_tumor_efficientnetb3.h5
 
 <!-- AUTO-UPDATED BY PRE-COMMIT HOOK — DO NOT EDIT BELOW THIS LINE MANUALLY -->
 <!-- CHANGELOG_START -->
+
+### [2026-04-24 02:05] — Commit (8 file(s) changed)
+- **Backend**: backend/routes/samples.js,backend/services/mlService.js,
+- **ML**: ml/__init__.py,ml/api/app.py,ml/models/malaria_predictor.py,ml/models/platelet_counter.py,ml/start_server.py,
+
+### [2026-04-24 02:00] — Removed Malaria & Platelet Models
+- Deleted `ml/models/malaria_predictor.py` (InceptionV3 inference module)
+- Deleted `ml/models/platelet_counter.py` (YOLOv8 inference module)
+- Deleted `ml/models/weights/malaria_inceptionv3.pth` (weight file)
+- Deleted `ml/models/weights/platelet_yolov8.pt` (weight file)
+- Removed all `blood` imageType routing from `ml/api/app.py` (single + batch predict)
+- Removed blood validation from `ml/utils/data_manager.py`
+- Removed blood sampleType mapping from `backend/routes/samples.js`
+- Updated `ml/__init__.py` and `ml/start_server.py` to remove malaria/platelet imports
+- System now supports **only** Brain Tumor (tissue) and Pneumonia (pneumonia) analysis
+
 
 ### [2026-04-24 01:38] — Commit (20 file(s) changed)
 - **ML**: ml/api/app.py,ml/api/pneumonia_api.py,ml/pneumonia_detection/pneumonia_detection/Medical_Image_Diagnosis_Project_Guide.txt,ml/pneumonia_detection/pneumonia_detection/PROJECT_SUMMARY.txt,ml/pneumonia_detection/pneumonia_detection/README.md,

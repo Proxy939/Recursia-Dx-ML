@@ -2,18 +2,19 @@ import fetch from 'node-fetch';
 import FormData from 'form-data';
 import fs from 'fs';
 
-const ML_API_URL = 'http://localhost:5000';
+const ML_API_URL = process.env.ML_API_URL || 'http://localhost:5001';
 
 class MLService {
-  static async predictImage(imagePath, filename) {
+  static async predictImage(imagePath, filename, imageType = 'tissue') {
     try {
       const formData = new FormData();
       formData.append('image', fs.createReadStream(imagePath), filename);
+      formData.append('imageType', imageType);
 
       const response = await fetch(`${ML_API_URL}/predict`, {
         method: 'POST',
         body: formData,
-        timeout: 30000 // 30 second timeout
+        timeout: 60000 // 60 second timeout (pneumonia ensemble takes longer)
       });
 
       if (!response.ok) {

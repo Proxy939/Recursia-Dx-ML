@@ -28,8 +28,7 @@ os.environ['CUBLAS_WORKSPACE_CONFIG'] = ':4096:8'
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from models.malaria_predictor import MalariaPredictor
-from models.platelet_counter import PlateletCounter
+# Note: Malaria/Platelet models removed. Only Brain Tumor + Pneumonia remain.
 from utils.image_utils import validate_image_format, get_image_info, enhance_medical_image
 from utils.data_manager import DataManager, save_prediction_report, validate_prediction_data
 from config.config import get_config, ERROR_MESSAGES
@@ -64,9 +63,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Initialize components (brain tumor detection handled by Brain Tumor API on port 5002)
-malaria_predictor = None
-platelet_counter = None
+# Initialize components (brain tumor → port 5002, pneumonia → port 5003)
 pipeline = None
 data_manager = DataManager(str(config.DATABASE_PATH))
 
@@ -86,8 +83,8 @@ def convert_numpy_types(obj):
         return obj
 
 def initialize_models():
-    """Initialize all ML models: malaria, platelet, and brain tumor detection."""
-    global malaria_predictor, platelet_counter, pipeline
+    """Initialize ML model proxies for brain tumor and pneumonia detection."""
+    global pipeline
     try:
         # ===================================================
         # 🔒 PYTORCH DETERMINISTIC SETUP
@@ -134,39 +131,10 @@ def initialize_models():
             logger.warning("⚠️ Pneumonia API not reachable - pneumonia analysis may fail")
             logger.warning(f"   Start Pneumonia API: python api/pneumonia_api.py --port 5003")
         
-        # ===================================================
-        # INITIALIZE MALARIA DETECTION MODEL (for blood smear images)
-        # ===================================================
-        try:
-            # Use centralized weights folder via MalariaPredictor default path
-            malaria_predictor = MalariaPredictor()
-            if malaria_predictor.model is not None:
-                logger.info("✅ Malaria detection model loaded successfully")
-            else:
-                logger.warning("⚠️ Malaria detection model not available")
-        except Exception as mal_error:
-            logger.warning(f"⚠️ Could not load malaria model: {mal_error}")
-            malaria_predictor = None
-        
-        # ===================================================
-        # INITIALIZE PLATELET COUNTER (for blood smear images)
-        # ===================================================
-        try:
-            platelet_counter = PlateletCounter()
-            if platelet_counter.model is not None:
-                logger.info("✅ Platelet counting model loaded successfully")
-            else:
-                logger.warning("⚠️ Platelet counting model not available")
-        except Exception as plat_error:
-            logger.warning(f"⚠️ Could not load platelet counter: {plat_error}")
-            platelet_counter = None
-        
         logger.info("="*70)
         logger.info("✅ Server initialization complete")
         logger.info(f"   - Brain Tumor Detection: Proxied to Brain Tumor API ({BRAIN_TUMOR_API_URL})")
         logger.info(f"   - Pneumonia Detection:  Proxied to Pneumonia API ({PNEUMONIA_API_URL})")
-        logger.info(f"   - Malaria Detection: {'✓' if malaria_predictor and malaria_predictor.model else '✗'}")
-        logger.info(f"   - Platelet Counting: {'✓' if platelet_counter and platelet_counter.model else '✗'}")
         logger.info("="*70)
         
         return True
@@ -199,7 +167,7 @@ def handle_internal_error(e):
 @app.route('/health', methods=['GET'])
 def health_check():
     """Health check endpoint."""
-    global malaria_predictor, platelet_counter, pipeline
+    global pipeline
     
     # Check Brain Tumor API status
     brain_tumor_available = False
@@ -222,8 +190,6 @@ def health_check():
         'models': {
             'brain_tumor_detection': brain_tumor_available,
             'pneumonia_detection': pneumonia_available,
-            'malaria_detection': malaria_predictor is not None and malaria_predictor.model is not None,
-            'platelet_counting': platelet_counter is not None and platelet_counter.model is not None,
         },
         'brain_tumor_api': BRAIN_TUMOR_API_URL,
         'pneumonia_api': PNEUMONIA_API_URL,
@@ -234,7 +200,7 @@ def health_check():
 @app.route('/predict', methods=['POST'])
 def predict_tumor():
     """Predict from uploaded image with routing based on imageType."""
-    global malaria_predictor, platelet_counter
+
     
     try:
         # Get imageType parameter to route to correct model
@@ -250,22 +216,10 @@ def predict_tumor():
             # Pneumonia detection handled by Pneumonia API (port 5003)
             image_type = 'pneumonia'  # normalize
             model_name = "Pneumonia Detection (DenseNet121 + EfficientNet-B0 Ensemble)"
-        elif image_type == 'blood':
-            if malaria_predictor is None or malaria_predictor.model is None:
-                return jsonify({
-                    'success': False,
-                    'error': 'Malaria detection model not loaded'
-                }), 500
-            if platelet_counter is None or platelet_counter.model is None:
-                return jsonify({
-                    'success': False,
-                    'error': 'Platelet counting model not loaded'
-                }), 500
-            model_name = "Blood Analysis (Malaria + Platelet Count)"
         else:
             return jsonify({
                 'success': False,
-                'error': f'Invalid imageType: {image_type}. Must be "tissue", "pneumonia", or "blood"'
+                'error': f'Invalid imageType: {image_type}. Must be "tissue" or "pneumonia"'
             }), 400
         
         # Check if image file is present
@@ -398,23 +352,12 @@ def predict_tumor():
                         'error': 'Pneumonia API request timed out'
                     }), 504
                     
-            elif image_type == 'blood':
-                # Run both malaria and platelet detection on same image
-                malaria_result = malaria_predictor.predict(image_array)
-                platelet_result = platelet_counter.predict(image_array)
-                
-                # Combine results
-                prediction_result = {
-                    'malaria_detection': malaria_result,
-                    'blood_cell_count': platelet_result,
-                    'predicted_class': 'Blood Analysis Complete',
-                    'confidence': (malaria_result['confidence'] + platelet_result['confidence']) / 2
-                }
+
             
             processing_time = time.time() - start_time
             
             # Validate prediction result
-            if not validate_prediction_data(prediction_result):
+            if not validate_prediction_data(prediction_result, image_type):
                 raise ValueError("Invalid prediction result")
             
             # Get image info
@@ -554,7 +497,7 @@ def predict_tumor_base64():
 @app.route('/batch_predict', methods=['POST'])
 def batch_predict():
     """Predict multiple images at once with routing based on imageType."""
-    global malaria_predictor, platelet_counter
+
     
     try:
         # Get imageType parameter to route to correct model
@@ -570,23 +513,10 @@ def batch_predict():
             # Pneumonia detection uses Pneumonia API
             image_type = 'pneumonia'
             model_name = "Pneumonia Detection (DenseNet121 + EfficientNet-B0 Ensemble)"
-        elif image_type == 'blood':
-            # For blood smear, we'll run both malaria and platelet detection
-            if malaria_predictor is None or malaria_predictor.model is None:
-                return jsonify({
-                    'success': False,
-                    'error': 'Malaria detection model not loaded'
-                }), 500
-            if platelet_counter is None or platelet_counter.model is None:
-                return jsonify({
-                    'success': False,
-                    'error': 'Platelet counting model not loaded'
-                }), 500
-            model_name = "Blood Analysis (Malaria + Platelet Count)"
         else:
             return jsonify({
                 'success': False,
-                'error': f'Invalid imageType: {image_type}. Must be "tissue", "pneumonia", or "blood"'
+                'error': f'Invalid imageType: {image_type}. Must be "tissue" or "pneumonia"'
             }), 400
         
         if 'images' not in request.files:
@@ -741,25 +671,7 @@ def batch_predict():
                             'error': 'Pneumonia API request timed out'
                         })
                     
-                elif image_type == 'blood':
-                    # Run both malaria and platelet detection on same image
-                    malaria_result = malaria_predictor.predict(image_array)
-                    platelet_result = platelet_counter.predict(image_array)
-                    
-                    # Combine results
-                    combined_result = {
-                        'malaria_detection': convert_numpy_types(malaria_result),
-                        'blood_cell_count': convert_numpy_types(platelet_result),
-                        'predicted_class': 'Blood Analysis Complete',
-                        'confidence': (malaria_result['confidence'] + platelet_result['confidence']) / 2
-                    }
-                    
-                    results.append({
-                        'filename': file.filename,
-                        'success': True,
-                        'prediction': combined_result,
-                        'model_used': model_name
-                    })
+
                 
             except Exception as e:
                 logger.error(f"Failed to process {file.filename}: {str(e)}")

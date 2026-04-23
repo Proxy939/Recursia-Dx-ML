@@ -333,36 +333,24 @@ def load_prediction_report(file_path: str) -> Optional[Dict]:
         logger.error(f"Error loading report: {str(e)}")
         return None
 
-def validate_prediction_data(prediction_result: Dict) -> bool:
+def validate_prediction_data(prediction_result: Dict, image_type: str = 'tissue') -> bool:
     """
     Validate prediction result data structure.
     
     Args:
         prediction_result: Prediction result dictionary
+        image_type: Type of image analyzed ('tissue', 'pneumonia')
         
     Returns:
         True if valid, False otherwise
     """
-    required_fields = [
-        'predicted_class', 'confidence', 'is_tumor', 
-        'probabilities', 'risk_level'
-    ]
-    
     try:
-        # Check required fields
-        for field in required_fields:
-            if field not in prediction_result:
-                logger.error(f"Missing required field: {field}")
-                return False
-        
-        # Check probabilities structure
-        probabilities = prediction_result.get('probabilities', {})
-        if not isinstance(probabilities, dict):
-            logger.error("Probabilities must be a dictionary")
+        # Common required fields for all types
+        if 'predicted_class' not in prediction_result:
+            logger.error("Missing required field: predicted_class")
             return False
-        
-        if 'non_tumor' not in probabilities or 'tumor' not in probabilities:
-            logger.error("Missing probability values")
+        if 'confidence' not in prediction_result:
+            logger.error("Missing required field: confidence")
             return False
         
         # Check confidence range
@@ -370,6 +358,24 @@ def validate_prediction_data(prediction_result: Dict) -> bool:
         if not (0 <= confidence <= 1):
             logger.error("Confidence must be between 0 and 1")
             return False
+        
+        if image_type == 'tissue':
+            # Tumor-specific validation
+            required_fields = ['is_tumor', 'probabilities', 'risk_level']
+            for field in required_fields:
+                if field not in prediction_result:
+                    logger.error(f"Missing required field for tissue: {field}")
+                    return False
+            probabilities = prediction_result.get('probabilities', {})
+            if not isinstance(probabilities, dict):
+                logger.error("Probabilities must be a dictionary")
+                return False
+        
+        elif image_type == 'pneumonia':
+            # Pneumonia-specific validation
+            if 'is_pneumonia' not in prediction_result:
+                logger.error("Missing required field for pneumonia: is_pneumonia")
+                return False
         
         return True
         

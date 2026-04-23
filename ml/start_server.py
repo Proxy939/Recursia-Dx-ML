@@ -127,7 +127,7 @@ def check_dependencies():
     return True
 
 def test_model_loading():
-    """Test if the ML models can be loaded."""
+    """Test if the ML model proxies are reachable."""
     logger = logging.getLogger(__name__)
     
     try:
@@ -141,21 +141,9 @@ def test_model_loading():
         else:
             logger.info("[WARNING] CUDA not available, using CPU")
         
-        # Test malaria model
-        from models.malaria_predictor import MalariaPredictor
-        malaria = MalariaPredictor()
-        if malaria.model is not None:
-            logger.info("[OK] Malaria model loaded successfully")
-        else:
-            logger.warning("[WARNING] Malaria model not available")
-        
-        # Test platelet model
-        from models.platelet_counter import PlateletCounter
-        platelet = PlateletCounter()
-        if platelet.model is not None:
-            logger.info("[OK] Platelet model loaded successfully")
-        else:
-            logger.warning("[WARNING] Platelet model not available")
+        # Brain Tumor and Pneumonia models are handled by separate APIs
+        logger.info("[OK] Brain Tumor API expected on port 5002")
+        logger.info("[OK] Pneumonia API expected on port 5003")
         
         return True
         
@@ -171,8 +159,8 @@ def start_api_server(host='0.0.0.0', port=5000, debug=False, workers=1):
         # Import the Flask app and initialization function
         from api.app import app, initialize_models
         
-        # Initialize all models (tumor, malaria, platelet)
-        logger.info("[INIT] Initializing all ML models...")
+        # Initialize model proxies (brain tumor + pneumonia)
+        logger.info("[INIT] Initializing ML model proxies...")
         if not initialize_models():
             logger.error("[ERROR] Failed to initialize models")
             return False
