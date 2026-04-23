@@ -1,0 +1,368 @@
+================================================================================
+MEDICAL IMAGE DIAGNOSIS SYSTEM — PROJECT DOCUMENT
+================================================================================
+
+================================================================================
+SECTION 1: PROJECT REQUIREMENTS (FROM PROBLEM STATEMENT)
+================================================================================
+
+PROBLEM STATEMENT #1 — Medical Image Diagnosis System
+Category: AI/ML
+
+PROBLEM DESCRIPTION:
+Manual medical image analysis is time-consuming and prone to human error. A
+CNN-based AI system is needed to detect diseases such as tumors, pneumonia, or
+fractures with higher accuracy and faster diagnosis support.
+
+MANDATORY FEATURES:
+1. Upload medical images via a dedicated user interface
+2. Utilize a pre-trained model (e.g. MobileNet / ResNet) for image classification
+3. Display prediction results with confidence percentage
+4. Show basic accuracy/loss charts from training or evaluation
+
+EVALUATION CRITERIA:
+- Model accuracy on test images
+- Clean and intuitive UI
+- Code quality and documentation
+
+================================================================================
+SECTION 2: OUR DECISIONS & SELECTED APPROACH
+================================================================================
+
+DISEASE FOCUS:
+We are building a Pneumonia Detection system from Chest X-Ray images.
+Reason: Single-disease focus allows deeper, more accurate implementation.
+Multi-disease detection across different scan types (X-ray, MRI, CT) is
+impractical within a hackathon scope and no unified dataset exists for it.
+
+DATASET SELECTED:
+RSNA Pneumonia Detection Challenge Dataset (2018)
+Source: Kaggle (Radiological Society of North America)
+Link: https://www.kaggle.com/c/rsna-pneumonia-detection-challenge/data
+
+Why RSNA over other datasets:
+- Larger dataset (~26,000 images) → better generalization
+- More credible source (RSNA is a professional medical body)
+- Stronger presentation value
+- Bounding box labels exist but will be IGNORED — we treat this as a binary
+  classification problem only (Pneumonia vs Normal)
+
+Dataset Details:
+- Format: DICOM (.dcm files)
+- Total images: ~26,684
+- Labels: Normal (~20,672) and Pneumonia (~6,012)
+- Class distribution: Heavily imbalanced (~80% Normal, ~20% Pneumonia)
+
+STORAGE FORMAT DECISION:
+Convert DICOM files to .npy (NumPy arrays) before training.
+Reason: DICOM files are large and slow to load per epoch. Converting once to
+.npy gives lossless storage, preserves full bit depth, and loads fast during
+training. This is a one-time preprocessing step.
+
+User uploads at inference time will be PNG files. These will be read with PIL,
+converted to NumPy arrays, and normalized identically to training data before
+being fed into the model.
+
+================================================================================
+SECTION 3: ML MODEL SELECTION
+================================================================================
+
+PRIMARY MODEL: ResNet50 (Transfer Learning)
+- Pre-trained on ImageNet
+- Freeze all base layers, retrain only the final classification head
+- Replace final FC layer with: Linear → ReLU → Dropout(0.5) → Linear(2)
+- Input size: 224x224 grayscale (converted to 3-channel by repeating the channel)
+- Expected accuracy: 88–93% on test set
+
+WHY NOT AN ENSEMBLE:
+An ensemble (e.g. ResNet50 + DenseNet121 + EfficientNetB0) would improve
+accuracy marginally but adds significant complexity in training time, inference
+time, and demo reliability. Given hackathon constraints, a well-tuned single
+ResNet50 is more practical and still impressive. If time permits after all
+features are built, a 2-model ensemble (ResNet50 + DenseNet121) can be explored.
+
+ALTERNATIVE IF TIME PERMITS (ENSEMBLE APPROACH):
+Model 1: ResNet50
+Model 2: DenseNet121 (also commonly used in chest X-ray literature)
+Ensemble method: Soft voting (average predicted probabilities)
+Note: Only attempt this if core pipeline is complete with time to spare.
+
+================================================================================
+SECTION 4: CLASS IMBALANCE MITIGATION
+================================================================================
+
+The dataset has ~80% Normal and ~20% Pneumonia cases. If not handled, the model
+will be biased toward predicting Normal for everything and still get 80% accuracy
+while being clinically useless.
+
+TECHNIQUE: Weighted Loss Function (pos_weight in BCEWithLogitsLoss)
+
+For binary classification in PyTorch:
+- Calculate pos_weight = (number of negative samples) / (number of positive samples)
+- pos_weight ≈ 20672 / 6012 ≈ 3.44
+- Pass this to BCEWithLogitsLoss
+
+This tells the model to penalize missing a Pneumonia case 3.44x more than
+missing a Normal case, which directly addresses the imbalance.
+
+SECONDARY TECHNIQUE: WeightedRandomSampler in DataLoader
+- Assign a higher sampling weight to Pneumonia images during training
+- Ensures each batch has a roughly balanced representation of both classes
+- Use alongside pos_weight for best results
+
+DO NOT use oversampling (duplicating images) as it leads to overfitting on a
+small positive class.
+
+================================================================================
+SECTION 5: IMPLEMENTATION GUIDE
+================================================================================
+
+--- PHASE 1: ENVIRONMENT SETUP ---
+
+Install required libraries:
+- torch, torchvision (PyTorch ecosystem)
+- pydicom (read DICOM files)
+- numpy, pandas (data handling)
+- Pillow / PIL (image processing)
+- matplotlib (charts)
+- opencv-python (image manipulation, Grad-CAM)
+- streamlit (UI framework)
+- fpdf or reportlab (PDF report generation)
+- scikit-learn (metrics: confusion matrix, classification report)
+- sqlite3 (built-in Python, for prediction history)
+
+--- PHASE 2: DATA PREPROCESSING ---
+
+Step 1: Download RSNA dataset from Kaggle
+Step 2: Parse the CSV labels file to get image IDs and labels
+        (patientId → label: 0 for Normal, 1 for Pneumonia)
+Step 3: For each DICOM file:
+        a. Read with pydicom: ds = pydicom.dcmread('file.dcm')
+        b. Extract pixel array: img = ds.pixel_array
+        c. Normalize pixel values to float32 in range [0, 1]
+        d. Resize to 224x224 using PIL or cv2
+        e. Save as .npy: np.save('output_path.npy', img)
+Step 4: Save training mean and std to norm_stats.json
+        (compute from training set only, not validation or test)
+Step 5: Split data: 70% train / 15% validation / 15% test
+
+Note: This entire preprocessing runs ONCE. After .npy files are saved,
+DICOM files are no longer needed.
+
+--- PHASE 3: DATASET AND DATALOADER ---
+
+Create a custom PyTorch Dataset class:
+- __init__: accepts list of .npy paths and corresponding labels
+- __getitem__:
+  a. Load .npy file
+  b. Apply normalization using saved mean and std
+  c. Convert grayscale to 3-channel (repeat channel 3 times)
+  d. Apply augmentations (training only): random horizontal flip,
+     random rotation (±10 degrees), slight brightness adjustment
+  e. Convert to tensor
+
+Create DataLoaders:
+- Training DataLoader: use WeightedRandomSampler, batch size 32
+- Validation DataLoader: no sampler, sequential, batch size 32
+- Test DataLoader: no sampler, sequential, batch size 32
+
+--- PHASE 4: MODEL SETUP ---
+
+Load ResNet50 with ImageNet weights from torchvision.models.
+Freeze all layers except the final fully connected layer.
+Replace model.fc with a custom head:
+  Sequential(
+    Linear(2048, 512),
+    ReLU(),
+    Dropout(0.5),
+    Linear(512, 2)
+  )
+
+Loss function: CrossEntropyLoss with class weights
+  weight = torch.tensor([1.0, 3.44])  (approximately, recalculate from your split)
+
+Optimizer: Adam with lr=1e-4
+Scheduler: ReduceLROnPlateau (reduce lr when validation loss plateaus)
+
+--- PHASE 5: TRAINING ---
+
+Train for up to 20 epochs (early stopping if validation loss does not improve
+for 5 consecutive epochs).
+
+Per epoch:
+- Forward pass on training batches
+- Compute loss, backpropagate, update weights
+- Compute training accuracy
+- Run validation loop (no gradients)
+- Compute validation accuracy and loss
+- Log both to a CSV file for charting later
+- Save best model checkpoint (lowest validation loss)
+
+Metrics to track per epoch:
+- Training loss, Training accuracy
+- Validation loss, Validation accuracy
+
+After training:
+- Evaluate on test set
+- Compute: accuracy, precision, recall, F1-score, confusion matrix
+- Save all metrics to a JSON file for display in the UI
+
+--- PHASE 6: GRAD-CAM IMPLEMENTATION ---
+
+Grad-CAM (Gradient-weighted Class Activation Mapping) highlights which regions
+of the input image the model focused on when making its prediction.
+
+Steps:
+1. Register a forward hook on the last convolutional layer of ResNet50
+   (layer4[-1].conv3 or the final ReLU)
+2. Register a backward hook to capture gradients at that layer
+3. On inference:
+   a. Forward pass → get prediction
+   b. Backward pass on the predicted class score
+   c. Global average pool the gradients
+   d. Weight the activation maps by these pooled gradients
+   e. Apply ReLU, resize to input image size
+   f. Normalize heatmap to [0, 255]
+4. Overlay heatmap on original X-ray using cv2.applyColorMap (COLORMAP_JET)
+5. Return both original image and heatmap overlay
+
+This gives a visual explanation of the model's decision and makes the demo
+significantly more impressive.
+
+--- PHASE 7: INFERENCE PIPELINE ---
+
+When user uploads an image through the UI:
+1. Read uploaded file with PIL, convert to grayscale ('L' mode)
+2. Resize to 224x224
+3. Convert to numpy float32 array
+4. Load norm_stats.json, apply same normalization as training
+5. Convert to 3-channel by repeating grayscale channel
+6. Convert to tensor, add batch dimension
+7. Run through model (model.eval(), torch.no_grad())
+8. Apply softmax to get class probabilities
+9. Return: predicted class, confidence percentage, Grad-CAM heatmap
+
+Confidence threshold logic:
+- If confidence >= 85%: show prediction normally
+- If confidence between 70–85%: show prediction with a yellow warning
+  "Moderate confidence — interpret with caution"
+- If confidence < 70%: show a red warning
+  "Low confidence — recommend manual review by a radiologist"
+
+--- PHASE 8: FEATURES IMPLEMENTATION ---
+
+FEATURE 1: Core Upload + Prediction UI (Mandatory)
+- Use Streamlit as the UI framework
+- st.file_uploader: accept PNG, JPG, DICOM files
+- Display uploaded X-ray on screen
+- Show prediction label (Normal / Pneumonia) and confidence percentage
+- Show confidence as a visual progress bar
+
+FEATURE 2: Grad-CAM Heatmap Display
+- Show original X-ray and Grad-CAM overlay side by side
+- Label clearly: "Model Attention Map — regions in red indicate areas of focus"
+- This is the single most impressive visual feature
+
+FEATURE 3: Confidence Threshold Warning
+- Color-coded warning below prediction based on confidence level
+- Green: High confidence
+- Yellow: Moderate confidence
+- Red: Low confidence
+
+FEATURE 4: DICOM Direct Upload Support
+- Detect if uploaded file is .dcm extension
+- If DICOM: use pydicom to extract pixel array, then proceed with normal pipeline
+- This differentiates from teams doing basic PNG-only upload
+
+FEATURE 5: PDF Report Generation
+- After prediction, show a "Download Report" button
+- Generated PDF contains:
+  a. Patient upload timestamp
+  b. Uploaded X-ray image
+  c. Prediction result and confidence percentage
+  d. Grad-CAM heatmap image
+  e. Confidence warning if applicable
+  f. Disclaimer: "This tool is not a substitute for professional medical diagnosis"
+- Use fpdf or reportlab to generate the PDF
+
+FEATURE 6: Accuracy/Loss Charts (Mandatory)
+- Load training metrics CSV saved during training
+- Plot: Training Loss vs Validation Loss across epochs
+- Plot: Training Accuracy vs Validation Accuracy across epochs
+- Display in a dedicated "Model Performance" section of the UI
+- Use matplotlib or st.line_chart
+
+FEATURE 7: Prediction History Dashboard
+- Store each inference result in a local SQLite database
+  Schema: id, timestamp, filename, prediction, confidence
+- Display a table in the UI showing past predictions
+- Makes the app feel production-ready
+
+--- PHASE 9: UI STRUCTURE (Streamlit) ---
+
+Page layout:
+- Header: App title, short description, disclaimer
+- Sidebar: Model info, dataset info, link to training metrics
+- Main area:
+  Tab 1 — Diagnosis: Upload image, run prediction, show results + Grad-CAM
+  Tab 2 — Model Performance: Accuracy/loss charts, test set metrics
+  Tab 3 — History: Past prediction table
+
+--- PHASE 10: CODE QUALITY AND DOCUMENTATION ---
+
+- Organize code into modules: preprocessing.py, model.py, gradcam.py,
+  inference.py, report.py, app.py
+- Add docstrings to every function
+- Write a clear README.md with:
+  a. Project overview
+  b. How to install dependencies
+  c. How to run preprocessing
+  d. How to train the model
+  e. How to launch the Streamlit app
+- Comment all non-obvious logic, especially Grad-CAM hooks and
+  normalization steps
+
+================================================================================
+SECTION 6: IMPORTANT DISCLAIMERS TO INCLUDE IN THE APP
+================================================================================
+
+- "This tool is built for educational and demonstration purposes only"
+- "It is not intended for clinical use or actual medical diagnosis"
+- "Always consult a qualified radiologist for medical imaging interpretation"
+- "Model predictions may be inaccurate and should not be acted upon clinically"
+
+Including these demonstrates responsible AI development and judges respect it.
+
+================================================================================
+SECTION 7: REALISTIC TIMELINE
+================================================================================
+
+Task                              Estimated Time
+-------------------------------------------------
+Environment setup                 1 hour
+DICOM to .npy preprocessing       3-4 hours
+Dataset class + DataLoader        2 hours
+Model setup + training            3-4 hours (+ GPU time)
+Grad-CAM implementation           2 hours
+Streamlit UI (core)               2 hours
+PDF report generation             1-2 hours
+History dashboard                 1 hour
+Charts + polish                   1 hour
+Documentation + README            1 hour
+-------------------------------------------------
+Total                             17-19 hours
+
+================================================================================
+SECTION 8: WHAT WILL MAKE YOUR PROJECT STAND OUT
+================================================================================
+
+1. Grad-CAM heatmap — visual explanation of the model decision
+2. PDF report generation — feels like a real clinical tool
+3. DICOM upload support — real-world medical imaging format
+4. Confidence threshold warnings — shows understanding of model limitations
+5. Clean modular code with docstrings — directly evaluated by judges
+6. Responsible AI disclaimer — shows maturity
+
+================================================================================
+END OF DOCUMENT
+================================================================================

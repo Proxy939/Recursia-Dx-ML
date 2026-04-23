@@ -1,0 +1,8 @@
+{
+  "train": 18678,
+  "val": 4003,
+  "test": 4003,
+  "train_pos": 4208,
+  "val_pos": 902,
+  "test_pos": 902
+}

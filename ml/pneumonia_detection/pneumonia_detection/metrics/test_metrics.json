@@ -1,0 +1,22 @@
+{
+  "densenet121": {
+    "accuracy": 74.26929802648014,
+    "auc": 0.8798227594131355
+  },
+  "efficientnet_b0": {
+    "accuracy": 81.18910816887335,
+    "auc": 0.8852923490097966
+  },
+  "ensemble": {
+    "accuracy": 77.89158131401449,
+    "auc": 0.8889432705707551,
+    "optimal_threshold": 0.45788782835006714,
+    "precision_normal": 0.9504065040650407,
+    "recall_normal": 0.7539503386004515,
+    "f1_normal": 0.840855961158065,
+    "precision_pneumonia": 0.5055087491898899,
+    "recall_pneumonia": 0.8647450110864745,
+    "f1_pneumonia": 0.6380368098159509,
+    "macro_f1": 0.7394463854870079
+  }
+}

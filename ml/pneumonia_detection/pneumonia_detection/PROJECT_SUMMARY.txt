@@ -1,0 +1,279 @@
+================================================================================
+PNEUMOAI — MEDICAL IMAGE DIAGNOSIS SYSTEM
+PROJECT SUMMARY DOCUMENT
+================================================================================
+
+PROBLEM STATEMENT
+--------------------------------------------------------------------------------
+Build an AI system that detects diseases from medical images using CNNs,
+displays predictions with confidence, and includes explainability features.
+Disease focus: Pneumonia detection from chest X-rays (RSNA dataset).
+
+================================================================================
+DATASET
+================================================================================
+
+Name:       RSNA Pneumonia Detection Challenge 2018
+Source:     Kaggle / Radiological Society of North America (RSNA)
+Link:       https://www.kaggle.com/c/rsna-pneumonia-detection-challenge/data
+Format:     DICOM (.dcm) files — real clinical format
+Total:      ~26,684 chest X-ray images
+Split:      70% Train / 15% Validation / 15% Test (stratified)
+
+Label Handling (3-class → binary):
+  - Raw labels: "Normal", "No Lung Opacity / Not Normal", "Lung Opacity"
+  - Decision: Merge "Normal" + "No Lung Opacity / Not Normal" → Class 0 (Normal)
+              "Lung Opacity" → Class 1 (Pneumonia)
+  - Reason: Clinically, we want to detect active pneumonia vs everything else
+
+Class Distribution (binary):
+  - Normal:    ~20,672 images (≈80%)
+  - Pneumonia:  ~6,012 images (≈20%)
+  - Imbalance ratio: ~3.44:1
+
+================================================================================
+PREPROCESSING PIPELINE (Kaggle)
+================================================================================
+
+1. Read DICOM files with pydicom
+2. Extract pixel array → normalize to uint8 (0–255)
+3. Apply CLAHE (Contrast Limited Adaptive Histogram Equalization)
+   - clipLimit=2.0, tileGridSize=(8,8)
+   - Improves local contrast in X-ray images
+4. Resize to 224×224 using LANCZOS interpolation
+5. Save as .npy (fast loading during training)
+
+Normalization at training time:
+  - ImageNet normalization (mean=[0.485,0.456,0.406], std=[0.229,0.224,0.225])
+  - Grayscale → 3-channel (repeat channel 3 times) to match pretrained model input
+
+Class Imbalance Handling:
+  - WeightedRandomSampler in DataLoader (balances each mini-batch)
+  - No class-weighted loss (would double-penalize when combined with sampler)
+
+Training Augmentations:
+  - Random horizontal flip (p=0.5)
+  - Random rotation (±15°)
+  - Random affine translation (±10%)
+  - Random scale (0.9–1.1)
+  - Color jitter (brightness ±0.2, contrast ±0.2)
+  - Gaussian blur (σ=0.1–1.0)
+
+================================================================================
+MODEL ARCHITECTURE — ENSEMBLE
+================================================================================
+
+MODEL 1: DenseNet121 (CheXNet-inspired)
+  - Base: torchvision DenseNet121, ImageNet pretrained
+  - Parameters: ~8M (lightweight)
+  - Custom head: Linear(1024→512) → ReLU → BatchNorm1d → Dropout(0.3) → Linear(512→2)
+  - Inspiration: CheXNet (Stanford, 2017) — radiologist-level chest X-ray diagnosis
+
+MODEL 2: EfficientNet-B0
+  - Base: torchvision EfficientNet-B0, ImageNet pretrained
+  - Parameters: ~5.3M (most efficient)
+  - Custom head: Dropout(0.3) → Linear(1280→512) → ReLU → BatchNorm1d → Dropout(0.2) → Linear(512→2)
+
+ENSEMBLE METHOD: Soft Voting
+  - Average the softmax probabilities from both models
+  - P(Pneumonia) = (DenseNet_prob + EfficientNet_prob) / 2
+  - Optimal decision threshold: 0.4579 (computed from ROC curve on validation set)
+
+================================================================================
+TRAINING STRATEGY
+================================================================================
+
+PHASE 1 — Head Only (5 epochs):
+  - Freeze all backbone layers
+  - Train only custom classification head
+  - Optimizer: AdamW, lr=1e-3, weight_decay=1e-4
+  - Loss: CrossEntropyLoss (no class weights — sampler handles imbalance)
+
+PHASE 2 — Full Fine-Tuning (up to 20 epochs):
+  - Unfreeze ALL layers (full backbone + head)
+  - Optimizer: AdamW, lr=1e-4 for all layers, weight_decay=1e-4
+  - Scheduler: CosineAnnealingLR (T_max=20, eta_min=1e-6)
+  - Gradient clipping: max_norm=1.0 (prevents instability)
+  - Early stopping: patience=7 on validation AUC
+
+Why full fine-tuning:
+  Medical images (grayscale X-rays) are fundamentally different from ImageNet
+  (natural color photos). Unfreezing all layers allows the model to adapt its
+  mid-level and high-level features to the radiology domain.
+
+================================================================================
+EVALUATION METRICS (TEST SET — V2 MODEL)
+================================================================================
+
+Individual Models:
+  DenseNet121   AUC: 0.8798   Accuracy: 74.27%
+  EfficientNet  AUC: 0.8853   Accuracy: 81.19%
+
+Ensemble (Optimal Threshold = 0.4579):
+  AUC-ROC:              0.8889
+  Accuracy:             77.89%  (optimal threshold) / 79.29% (0.5 threshold)
+  Precision (Normal):   0.95
+  Recall (Normal):      0.75
+  F1 (Normal):          0.84
+  Precision (Pneumonia):0.51
+  Recall (Pneumonia):   0.86
+  F1 (Pneumonia):       0.64
+  Macro F1:             0.74
+  Weighted F1:          0.80
+
+Note on accuracy vs AUC:
+  AUC-ROC (0.889) is the correct primary metric for imbalanced medical data.
+  Accuracy is misleading at 80/20 imbalance — a model predicting "Normal" for
+  everything gets 80% accuracy while being clinically useless.
+  High recall (0.86) on Pneumonia is the critical clinical metric — we want to
+  miss as few true pneumonia cases as possible, even at cost of more false positives.
+
+Training files saved:
+  densenet121_best.pth       — Best DenseNet121 weights (by val AUC)
+  efficientnet_b0_best.pth   — Best EfficientNet-B0 weights (by val AUC)
+  norm_stats.json            — Normalization type: ImageNet
+  training_metrics.csv       — Per-epoch loss/acc/AUC for both models
+  test_metrics.json          — All final evaluation numbers
+  figures/confusion_matrix.png
+  figures/roc_curves.png
+  figures/pr_curves.png
+  figures/training_curves.png
+
+================================================================================
+FEATURES IMPLEMENTED
+================================================================================
+
+FEATURE 1 — Core Diagnosis (Mandatory)
+  Upload PNG, JPG, JPEG, or DICOM (.dcm) chest X-ray
+  Ensemble inference (DenseNet121 + EfficientNet-B0)
+  Prediction label: Normal / Pneumonia
+  Confidence percentage with visual progress bar
+  Per-model probability breakdown (DenseNet121, EfficientNet-B0, Ensemble)
+
+FEATURE 2 — Grad-CAM Heatmap (Explainability)
+  Gradient-weighted Class Activation Mapping
+  Highlights which regions of the X-ray the model focused on
+  Jet colormap overlay (red=high attention, blue=low)
+  Available for both DenseNet121 and EfficientNet-B0 (optional toggle)
+
+FEATURE 3 — Confidence Threshold Warnings
+  Green:  ≥85% confidence — High confidence
+  Yellow: 70–85% — Moderate confidence, interpret with caution
+  Red:    <70% — Low confidence, radiologist review recommended
+
+FEATURE 4 — Severity Scoring
+  Analyzes the area of Grad-CAM activation above threshold
+  Outputs: Minimal/Normal (<10%), Mild (10–20%), Moderate (20–35%), Severe (>35%)
+  Displayed as a colored pill badge with affected scan percentage
+
+FEATURE 5 — GPT-4o Vision Explanation (Primary Explainability)
+  Sends original X-ray + Grad-CAM overlay to OpenAI GPT-4o Vision
+  System prompt: expert radiologist assistant role
+  Returns 4 structured sections:
+    - Radiological Observations
+    - Attention Map Analysis
+    - Model Agreement Assessment
+    - Limitations & Caveats
+  Displayed as styled cards in the UI
+  Loaded from .env file (OPENAI_API_KEY) — never exposed in UI
+
+FEATURE 6 — LIME Fallback Explainability
+  Runs automatically if GPT-4o API is unavailable
+  Local Interpretable Model-agnostic Explanations
+  Superpixel-based explanation highlighting influential regions
+  Green overlay on original image
+
+FEATURE 7 — DICOM File Support
+  Accepts .dcm files directly (real clinical format)
+  Uses pydicom to extract pixel array
+  Full CLAHE + resize pipeline applied identically to training
+
+FEATURE 8 — PDF Diagnostic Report
+  Generated on every prediction
+  Contains: timestamp, filename, prediction result, confidence,
+            individual model probabilities, severity assessment,
+            original X-ray image, Grad-CAM heatmap,
+            LIME image (if run), medical disclaimer
+  Download button in UI
+
+FEATURE 9 — Model Performance Dashboard (Tab 2)
+  5 key metric cards (AUC, Accuracy, Recall, Precision, F1)
+  Interactive Plotly bar chart: model comparison
+  ROC curves (individual + ensemble)
+  Training curves: loss, accuracy, AUC-ROC over epochs
+  Confusion matrix
+  Precision-Recall curves
+
+FEATURE 10 — Prediction History (Tab 3)
+  SQLite database stores every inference result
+  Fields: timestamp, filename, label, confidence, probabilities,
+          severity, affected_pct, threshold used
+  Summary stats: total, pneumonia count, normal count, avg confidence
+  Pie chart of label distribution
+  Exportable as CSV
+
+FEATURE 11 — Batch Processing (Tab 4)
+  Upload multiple X-rays simultaneously
+  Runs ensemble inference + Grad-CAM + severity on each
+  Summary table with all results
+  Progress bar during processing
+  All results saved to prediction history automatically
+  Export batch results as CSV
+
+================================================================================
+TECH STACK
+================================================================================
+
+ML Framework:     PyTorch 2.2, torchvision
+Training:         Kaggle (GPU T4/P100)
+Explainability:   Grad-CAM (custom hooks), LIME, OpenAI GPT-4o Vision API
+UI:               Streamlit 1.55
+Charts:           Plotly
+PDF:              fpdf2
+Database:         SQLite (built-in Python)
+Image I/O:        PIL, OpenCV, pydicom
+Environment:      python-dotenv (.env for API key)
+
+================================================================================
+FILE STRUCTURE
+================================================================================
+
+e:\pneumonia_detection\
+  app.py                          — Main Streamlit application (4 tabs)
+  requirements.txt                — Python dependencies
+  .env                            — API keys (gitignored)
+  README.md                       — Setup and usage guide
+  predictions.db                  — SQLite prediction history (auto-created)
+  kaggle/
+    train_ensemble_v2.py          — Kaggle training script (USE THIS)
+    train_ensemble.py             — V1 (buggy, ignore)
+  models/
+    densenet121_best.pth          — Trained DenseNet121 weights
+    efficientnet_b0_best.pth      — Trained EfficientNet-B0 weights
+    norm_stats.json               — Normalization config
+  metrics/
+    test_metrics.json             — Final test set metrics
+    training_metrics.csv          — Per-epoch training history
+    figures/                      — 4 evaluation plots (PNG)
+  src/
+    model.py                      — Model architecture definitions
+    inference.py                  — Preprocessing + ensemble inference
+    gradcam.py                    — Grad-CAM implementation
+    lime_explainer.py             — LIME explainability
+    ai_explainer.py               — GPT-4o Vision integration + LIME fallback
+    database.py                   — SQLite CRUD operations
+    report.py                     — PDF report generator
+
+================================================================================
+HOW TO RUN
+================================================================================
+
+1. pip install -r requirements.txt
+2. Add OPENAI_API_KEY=sk-... to .env file
+3. Place model weights in models/ folder
+4. streamlit run app.py
+5. Open http://localhost:8501
+
+================================================================================
+END OF DOCUMENT
+================================================================================

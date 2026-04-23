@@ -3,7 +3,7 @@
 > **Purpose**: This is the living knowledge base of the entire RecursiaDx project.
 > It is auto-updated on every `git commit` via a pre-commit hook.
 > AI agents and developers should read this file before making any changes to the codebase.
-> **Last auto-updated**: 2026-04-24T01:17:03+05:30
+> **Last auto-updated**: 2026-04-24T01:39:00+05:30
 
 ---
 
@@ -30,6 +30,7 @@ It supports three types of medical image analysis:
 | Analysis Type | Input | Model | Output |
 |---|---|---|---|
 | Brain MRI | `.jpg/.png` | EfficientNetB3 | Glioma / Meningioma / Pituitary / No Tumor |
+| Chest X-ray (Pneumonia) | `.jpg/.png/.dcm` | DenseNet121 + EfficientNet-B0 Ensemble | Normal / Pneumonia + Severity + Heatmap |
 | Blood Smear (Malaria) | `.jpg/.png` | InceptionV3 | Infected / Uninfected |
 | Blood Smear (Platelet) | `.jpg/.png` | YOLOv8 | Platelet count + bounding boxes |
 
@@ -46,6 +47,7 @@ It supports three types of medical image analysis:
 │  Port: 5173     │  Port: 5000       │                       │
 │                 │       │           │  app.py  :5001        │
 │                 │       │           │  brain_tumor_api :5002│
+│                 │       │           │  pneumonia_api  :5003 │
 │                 │  MongoDB          │                       │
 │                 │  localhost:27017  │                       │
 └─────────────────┴───────────────────┴───────────────────────┘
@@ -57,6 +59,7 @@ User → React Client (5173)
      → Node.js Backend (5000)  [auth, logging, DB]
      → ML Gateway app.py (5001)
      → brain_tumor_api.py (5002)  ← [if image_type = 'tissue']
+     → pneumonia_api.py (5003)    ← [if image_type = 'pneumonia']
      → InceptionV3 / YOLOv8      ← [if image_type = 'blood']
 ```
 
@@ -138,7 +141,8 @@ Recursia-Dx-ML--main/
 │   ├── venv/                 ← Python virtual env (gitignored)
 │   ├── api/
 │   │   ├── app.py            ← ML gateway (port 5001)
-│   │   └── brain_tumor_api.py ← EfficientNetB3 API (port 5002)
+│   │   ├── brain_tumor_api.py ← EfficientNetB3 API (port 5002)
+│   │   └── pneumonia_api.py   ← DenseNet121+EfficientNet-B0 API (port 5003)
 │   ├── models/
 │   │   ├── malaria_predictor.py   ← InceptionV3 inference
 │   │   ├── platelet_counter.py    ← YOLOv8 inference
@@ -169,6 +173,7 @@ Recursia-Dx-ML--main/
 | Backend API | 5000 | Node.js + Express | `npm run dev` (in `/backend`) |
 | ML Gateway | 5001 | Python + Flask | `python api/app.py` |
 | Brain Tumor API | 5002 | Python + Flask | `python api/brain_tumor_api.py` |
+| Pneumonia API | 5003 | Python + Flask | `python api/pneumonia_api.py` |
 | MongoDB | 27017 | MongoDB 8.2.7 | Auto (Windows Service) |
 
 ---
@@ -190,13 +195,30 @@ Recursia-Dx-ML--main/
 - **API**: `POST http://localhost:5002/analyze` with `image` (multipart)
 - **Response fields**: `predicted_class`, `confidence_percent`, `all_class_probabilities`, `is_tumor`, `risk_level`
 
-### 2. Malaria Detector — InceptionV3
+### 2. Pneumonia Detector — DenseNet121 + EfficientNet-B0 Ensemble
+- **Weights**: `ml/pneumonia_detection/pneumonia_detection/models/densenet121_best.pth` (30MB) + `efficientnet_b0_best.pth` (19MB)
+- **Framework**: PyTorch 2.2
+- **Classes**: `Normal`, `Pneumonia` (binary classification)
+- **Input**: 224×224 grayscale chest X-ray (CLAHE preprocessed, 3-channel ImageNet normalized)
+- **Dataset**: RSNA Pneumonia Detection Challenge 2018 (~26,684 DICOM images)
+- **Ensemble Method**: Soft voting (average softmax probabilities)
+- **Optimal Threshold**: 0.4579 (from ROC analysis)
+- **Performance**:
+  - AUC-ROC: **0.8889**
+  - Recall (Pneumonia): **0.86** — catches 86% of true pneumonia cases
+  - Accuracy: **77.89%** (at optimal threshold)
+  - Macro F1: **0.74**
+- **Features**: Grad-CAM heatmap, severity scoring (Minimal/Mild/Moderate/Severe), confidence tiering
+- **API**: `POST http://localhost:5003/analyze` with `image` (multipart)
+- **Response fields**: `predicted_class`, `confidence_percent`, `is_pneumonia`, `per_model`, `severity`, `affected_area_pct`, `heatmap_base64`, `risk_level`
+
+### 3. Malaria Detector — InceptionV3
 - **File**: `ml/models/weights/malaria_inceptionv3.pth`
 - **Framework**: PyTorch
 - **Classes**: `Parasitized`, `Uninfected`
 - **API**: Handled directly in `ml/api/app.py` when `image_type = 'blood'`
 
-### 3. Platelet Counter — YOLOv8
+### 4. Platelet Counter — YOLOv8
 - **File**: `ml/models/weights/platelet_yolov8.pt`
 - **Framework**: PyTorch (Ultralytics)
 - **Output**: Platelet count + bounding boxes
@@ -243,6 +265,8 @@ Recursia-Dx-ML--main/
 ```python
 if image_type == 'tissue':
     → proxy to brain_tumor_api.py (port 5002)
+elif image_type == 'pneumonia':
+    → proxy to pneumonia_api.py (port 5003)
 elif image_type == 'blood':
     → run malaria_predictor + platelet_counter locally
 ```
@@ -254,6 +278,14 @@ elif image_type == 'blood':
 | GET | `/health` | Health check + model info |
 | POST | `/analyze` | Classify brain MRI image |
 | GET | `/model_info` | Model metadata |
+
+### Pneumonia API (Python — Port 5003)
+
+| Method | Endpoint | Description |
+|---|---|---|
+| GET | `/health` | Health check + model info |
+| POST | `/analyze` | Detect pneumonia from chest X-ray (returns prediction + Grad-CAM heatmap) |
+| GET | `/model_info` | Model metadata + ensemble metrics |
 
 ---
 
@@ -360,6 +392,9 @@ BRAIN_TUMOR_MODEL_PATH=models/weights/brain_tumor_efficientnetb3.h5
 
 <!-- AUTO-UPDATED BY PRE-COMMIT HOOK — DO NOT EDIT BELOW THIS LINE MANUALLY -->
 <!-- CHANGELOG_START -->
+
+### [2026-04-24 01:38] — Commit (20 file(s) changed)
+- **ML**: ml/api/app.py,ml/api/pneumonia_api.py,ml/pneumonia_detection/pneumonia_detection/Medical_Image_Diagnosis_Project_Guide.txt,ml/pneumonia_detection/pneumonia_detection/PROJECT_SUMMARY.txt,ml/pneumonia_detection/pneumonia_detection/README.md,
 
 ### [2026-04-24 01:17] — Commit (6 file(s) changed)
 - **Backend**: backend/config/config.js,backend/models/Analysis.js,backend/models/Report.js,backend/models/User.js,backend/server.js,

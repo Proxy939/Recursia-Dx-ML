@@ -38,6 +38,9 @@ import requests as http_requests  # For proxying to Brain Tumor API
 # Brain Tumor API configuration
 BRAIN_TUMOR_API_URL = os.environ.get('BRAIN_TUMOR_API_URL', 'http://localhost:5002')
 
+# Pneumonia Detection API configuration
+PNEUMONIA_API_URL = os.environ.get('PNEUMONIA_API_URL', 'http://localhost:5003')
+
 # Initialize Flask app
 app = Flask(__name__)
 CORS(app)
@@ -118,6 +121,20 @@ def initialize_models():
             logger.warning(f"   Start Brain Tumor API: python api/brain_tumor_api.py --port 5002")
         
         # ===================================================
+        # PNEUMONIA DETECTION: Handled by Pneumonia API (port 5003)
+        # ===================================================
+        logger.info(f"🔗 Pneumonia analysis will be proxied to Pneumonia API at: {PNEUMONIA_API_URL}")
+        try:
+            pn_health = http_requests.get(f"{PNEUMONIA_API_URL}/health", timeout=2)
+            if pn_health.status_code == 200:
+                logger.info("✅ Pneumonia API is available")
+            else:
+                logger.warning("⚠️ Pneumonia API returned non-200 status")
+        except Exception:
+            logger.warning("⚠️ Pneumonia API not reachable - pneumonia analysis may fail")
+            logger.warning(f"   Start Pneumonia API: python api/pneumonia_api.py --port 5003")
+        
+        # ===================================================
         # INITIALIZE MALARIA DETECTION MODEL (for blood smear images)
         # ===================================================
         try:
@@ -147,6 +164,7 @@ def initialize_models():
         logger.info("="*70)
         logger.info("✅ Server initialization complete")
         logger.info(f"   - Brain Tumor Detection: Proxied to Brain Tumor API ({BRAIN_TUMOR_API_URL})")
+        logger.info(f"   - Pneumonia Detection:  Proxied to Pneumonia API ({PNEUMONIA_API_URL})")
         logger.info(f"   - Malaria Detection: {'✓' if malaria_predictor and malaria_predictor.model else '✗'}")
         logger.info(f"   - Platelet Counting: {'✓' if platelet_counter and platelet_counter.model else '✗'}")
         logger.info("="*70)
@@ -191,14 +209,24 @@ def health_check():
     except:
         pass
     
+    # Check Pneumonia API status
+    pneumonia_available = False
+    try:
+        response = http_requests.get(f"{PNEUMONIA_API_URL}/health", timeout=2)
+        pneumonia_available = response.status_code == 200
+    except:
+        pass
+    
     return jsonify({
         'status': 'healthy',
         'models': {
             'brain_tumor_detection': brain_tumor_available,
+            'pneumonia_detection': pneumonia_available,
             'malaria_detection': malaria_predictor is not None and malaria_predictor.model is not None,
             'platelet_counting': platelet_counter is not None and platelet_counter.model is not None,
         },
         'brain_tumor_api': BRAIN_TUMOR_API_URL,
+        'pneumonia_api': PNEUMONIA_API_URL,
         'pipeline_loaded': pipeline is not None,
         'timestamp': time.time()
     })
@@ -218,6 +246,10 @@ def predict_tumor():
         if image_type == 'tissue':
             # Brain tumor analysis handled by Brain Tumor API (port 5002)
             model_name = "Brain Tumor Detection (EfficientNetB3)"
+        elif image_type == 'pneumonia' or image_type == 'lung' or image_type == 'xray':
+            # Pneumonia detection handled by Pneumonia API (port 5003)
+            image_type = 'pneumonia'  # normalize
+            model_name = "Pneumonia Detection (DenseNet121 + EfficientNet-B0 Ensemble)"
         elif image_type == 'blood':
             if malaria_predictor is None or malaria_predictor.model is None:
                 return jsonify({
@@ -233,7 +265,7 @@ def predict_tumor():
         else:
             return jsonify({
                 'success': False,
-                'error': f'Invalid imageType: {image_type}. Must be "tissue" or "blood"'
+                'error': f'Invalid imageType: {image_type}. Must be "tissue", "pneumonia", or "blood"'
             }), 400
         
         # Check if image file is present
@@ -321,6 +353,49 @@ def predict_tumor():
                     return jsonify({
                         'success': False,
                         'error': 'Brain Tumor API request timed out'
+                    }), 504
+
+            elif image_type == 'pneumonia':
+                # Proxy to Pneumonia API for chest X-ray analysis
+                try:
+                    with open(filepath, 'rb') as img_file:
+                        files = {'image': (filename, img_file, 'image/png')}
+                        pn_response = http_requests.post(
+                            f"{PNEUMONIA_API_URL}/analyze",
+                            files=files,
+                            timeout=60
+                        )
+                    
+                    if pn_response.status_code == 200:
+                        pn_data = pn_response.json()
+                        if pn_data.get('success'):
+                            prediction_result = {
+                                'predicted_class': pn_data['predicted_class'],
+                                'confidence': pn_data['confidence_percent'] / 100.0,
+                                'is_pneumonia': pn_data.get('is_pneumonia', False),
+                                'probabilities': pn_data.get('per_model', {}),
+                                'severity': pn_data.get('severity', 'Unknown'),
+                                'affected_area_pct': pn_data.get('affected_area_pct', 0),
+                                'risk_level': pn_data.get('risk_level', 'Unknown'),
+                                'risk_assessment': 'high' if pn_data.get('is_pneumonia') else 'low',
+                                'heatmap_base64': pn_data.get('heatmap_base64'),
+                                'confidence_tier': pn_data.get('confidence_tier', {})
+                            }
+                        else:
+                            raise Exception(pn_data.get('error', 'Pneumonia API prediction failed'))
+                    else:
+                        raise Exception(f"Pneumonia API returned status {pn_response.status_code}")
+                        
+                except http_requests.exceptions.ConnectionError:
+                    return jsonify({
+                        'success': False,
+                        'error': 'Pneumonia API is not available',
+                        'message': 'Please start the Pneumonia API: python api/pneumonia_api.py --port 5003'
+                    }), 503
+                except http_requests.exceptions.Timeout:
+                    return jsonify({
+                        'success': False,
+                        'error': 'Pneumonia API request timed out'
                     }), 504
                     
             elif image_type == 'blood':
@@ -491,6 +566,10 @@ def batch_predict():
         if image_type == 'tissue':
             # Brain tumor analysis uses Brain Tumor API
             model_name = "Brain Tumor Detection (EfficientNetB3)"
+        elif image_type == 'pneumonia' or image_type == 'lung' or image_type == 'xray':
+            # Pneumonia detection uses Pneumonia API
+            image_type = 'pneumonia'
+            model_name = "Pneumonia Detection (DenseNet121 + EfficientNet-B0 Ensemble)"
         elif image_type == 'blood':
             # For blood smear, we'll run both malaria and platelet detection
             if malaria_predictor is None or malaria_predictor.model is None:
@@ -507,7 +586,7 @@ def batch_predict():
         else:
             return jsonify({
                 'success': False,
-                'error': f'Invalid imageType: {image_type}. Must be "tissue" or "blood"'
+                'error': f'Invalid imageType: {image_type}. Must be "tissue", "pneumonia", or "blood"'
             }), 400
         
         if 'images' not in request.files:
@@ -602,6 +681,64 @@ def batch_predict():
                             'filename': file.filename,
                             'success': False,
                             'error': 'Brain Tumor API request timed out'
+                        })
+                    
+                elif image_type == 'pneumonia':
+                    # Proxy to Pneumonia API for chest X-ray analysis
+                    try:
+                        import io
+                        img_bytes = io.BytesIO()
+                        Image.fromarray(image_array).save(img_bytes, format='PNG')
+                        img_bytes.seek(0)
+                        
+                        files_to_send = {'image': (file.filename, img_bytes, 'image/png')}
+                        pn_response = http_requests.post(
+                            f"{PNEUMONIA_API_URL}/analyze",
+                            files=files_to_send,
+                            timeout=60
+                        )
+                        
+                        if pn_response.status_code == 200:
+                            pn_data = pn_response.json()
+                            if pn_data.get('success'):
+                                prediction_result = {
+                                    'predicted_class': pn_data['predicted_class'],
+                                    'confidence': pn_data['confidence_percent'] / 100.0,
+                                    'is_pneumonia': pn_data.get('is_pneumonia', False),
+                                    'probabilities': pn_data.get('per_model', {}),
+                                    'severity': pn_data.get('severity', 'Unknown'),
+                                    'risk_level': pn_data.get('risk_level', 'Unknown'),
+                                    'risk_assessment': 'high' if pn_data.get('is_pneumonia') else 'low'
+                                }
+                                results.append({
+                                    'filename': file.filename,
+                                    'success': True,
+                                    'prediction': prediction_result,
+                                    'model_used': model_name
+                                })
+                            else:
+                                results.append({
+                                    'filename': file.filename,
+                                    'success': False,
+                                    'error': pn_data.get('error', 'Pneumonia API prediction failed')
+                                })
+                        else:
+                            results.append({
+                                'filename': file.filename,
+                                'success': False,
+                                'error': f'Pneumonia API returned status {pn_response.status_code}'
+                            })
+                    except http_requests.exceptions.ConnectionError:
+                        return jsonify({
+                            'success': False,
+                            'error': 'Pneumonia API is not available',
+                            'message': 'Please start the Pneumonia API: python api/pneumonia_api.py --port 5003'
+                        }), 503
+                    except http_requests.exceptions.Timeout:
+                        results.append({
+                            'filename': file.filename,
+                            'success': False,
+                            'error': 'Pneumonia API request timed out'
                         })
                     
                 elif image_type == 'blood':
