@@ -1,5 +1,23 @@
 # RecursiaDx — Setup Guide
 
+## ⚡ Quick Start (One Command)
+
+After cloning the repo and placing the model weights (see Step 4 below):
+
+```powershell
+# From the project root — installs everything and launches all services
+.\start.ps1
+```
+
+This script will:
+- Install `npm` deps for backend + frontend
+- Create Python venv and install ML requirements
+- Check for model weights and `.env` files
+- Open 5 service windows + the browser automatically
+
+---
+
+
 ## Prerequisites (install on any new PC)
 
 | Tool | Version | Download |
