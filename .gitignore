@@ -58,12 +58,14 @@ env/
 ENV/
 torch_env/
 
-# ML - DO NOT ignore model weights (.pth, .pt)
+# ML - DO NOT ignore model weights (.pth, .pt, .h5, etc.)
 # We want to push them for deployment
-*.h5
-*.onnx
-*.pkl
-*.pickle
+!*.h5
+!*.onnx
+!*.pkl
+!*.pickle
+!*.pth
+!*.pt
 
 # ML Uploads and Runtime Data
 ml/uploads/
@@ -77,5 +79,3 @@ ml/*.db
 *.ipynb
 
 # Ignore old broken LFS pointers
-ml/models/weights/*.pth
-ml/models/weights/*.pt

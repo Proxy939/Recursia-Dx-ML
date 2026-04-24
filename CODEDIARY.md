@@ -3,7 +3,7 @@
 > **Purpose**: This is the living knowledge base of the entire RecursiaDx project.
 > It is auto-updated on every `git commit` via a pre-commit hook.
 > AI agents and developers should read this file before making any changes to the codebase.
-> **Last auto-updated**: 2026-04-24T08:55:54+05:30
+> **Last auto-updated**: 2026-04-24T08:56:37+05:30
 
 ---
 
@@ -375,6 +375,10 @@ BRAIN_TUMOR_MODEL_PATH=models/weights/brain_tumor_efficientnetb3.h5
 
 <!-- AUTO-UPDATED BY PRE-COMMIT HOOK — DO NOT EDIT BELOW THIS LINE MANUALLY -->
 <!-- CHANGELOG_START -->
+
+### [2026-04-24 08:56] — Commit (2 file(s) changed)
+- **ML**: ml/requirements.txt,
+- **Root**: .gitignore,
 
 ### [2026-04-24 08:55] — Commit (1 file(s) changed)
 - **ML**: ml/models/weights/brain_tumor_efficientnetb3.h5,

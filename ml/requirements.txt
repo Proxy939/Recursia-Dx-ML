@@ -18,3 +18,8 @@ plotly>=5.0.0
 tqdm>=4.62.0
 tensorflow==2.15.0
 kagglehub
+pydicom>=2.4.4
+fpdf2>=2.7.7
+streamlit>=1.28.0
+lime>=0.2.0
+openai>=1.30.0
