@@ -95,9 +95,7 @@ const sampleSchema = new mongoose.Schema({
     mimetype: String,
     size: Number,
     path: String,
-    url: String,
-    isDicom: Boolean,
-    originalDicomPath: String,
+    url: String, // Add URL field for frontend access
     uploadedAt: { type: Date, default: Date.now },
     magnification: String,
     staining: String,
@@ -106,25 +104,10 @@ const sampleSchema = new mongoose.Schema({
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User'
     },
-    // ── Grad-CAM heatmap ─────────────────────────────────────────────────
-    heatmap: {
-      base64:       mongoose.Schema.Types.Mixed, // data:image/png;base64,... string
-      type:         String,   // 'gradcam'
-      colormap:     String,   // 'jet'
-      affectedAreaPct: Number,
-      severity:     String
-    },
-    // ── ML Analysis ───────────────────────────────────────────────────────
     mlAnalysis: {
       prediction: {
         type: String,
-        enum: [
-          'benign', 'malignant', 'indeterminate',
-          'Pneumonia', 'Normal',
-          'Glioma', 'Meningioma', 'Pituitary', 'Tumor', 'No Tumor',
-          // lowercase versions returned by brain tumor API
-          'glioma', 'meningioma', 'pituitary', 'notumor'
-        ]
+        enum: ['benign', 'malignant', 'indeterminate', 'Pneumonia', 'Normal', 'Glioma', 'Meningioma', 'Pituitary', 'Tumor', 'No Tumor']
       },
       confidence: Number,
       riskAssessment: {
@@ -136,16 +119,13 @@ const sampleSchema = new mongoose.Schema({
       modelVersion: String,
       analyzedAt: { type: Date, default: Date.now },
       metadata: mongoose.Schema.Types.Mixed,
-      // Pneumonia-specific
+      // Pneumonia-specific fields
       isPneumonia: Boolean,
       severity: String,
       affectedAreaPct: Number,
       confidenceTier: mongoose.Schema.Types.Mixed,
       classProbabilities: mongoose.Schema.Types.Mixed,
-      // Brain tumor-specific
-      tumorType: String,
-      tumorTypeInfo: mongoose.Schema.Types.Mixed,
-      // Blood analysis
+      // Blood analysis specific fields
       bloodAnalysis: {
         malaria: {
           status: String,
@@ -163,7 +143,6 @@ const sampleSchema = new mongoose.Schema({
       }
     }
   }],
-
   aiAnalysis: {
     overallPrediction: {
       type: String,

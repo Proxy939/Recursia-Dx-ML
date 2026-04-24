@@ -661,75 +661,35 @@ router.post('/upload-with-analysis',
       if (!sampleData.collectionInfo) sampleData.collectionInfo = {};
       sampleData.collectionInfo.collectionDate = sampleData.collectionInfo.collectionDate || new Date();
 
-      // Create sample in MongoDB
-      let sample;
-      try {
-        sample = await Sample.create({
-          sampleId,
-          ...sampleData,
-          images: processedImages,
-          submittedBy: null,
-          workflow: {
-            receivedAt: new Date(),
-            estimatedCompletionTime: new Date(Date.now() + 24 * 60 * 60 * 1000)
-          }
-        });
-      } catch (dbErr) {
-        // Surface Mongoose validation errors clearly
-        console.error('❌ Sample.create validation/DB error:', dbErr.message);
-        if (dbErr.errors) {
-          Object.entries(dbErr.errors).forEach(([k,v]) =>
-            console.error(`   • ${k}: ${v.message}`)
-          );
+      // Create sample with all data
+      const sample = await Sample.create({
+        sampleId,
+        ...sampleData,
+        images: processedImages,
+        submittedBy: null, // Temporarily removed for testing
+        workflow: {
+          receivedAt: new Date(),
+          estimatedCompletionTime: new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 hours
         }
-        throw dbErr;
-      }
+      });
 
-      // Build a slim response — do NOT serialize the full base64 blobs back to the client.
-      // The frontend already has the original file from the upload and gets the heatmap
-      // via the mlAnalysis object (which contains metadata, not the raw image bytes).
-      const slimImages = (sample.images || []).map(img => ({
-        _id:          img._id,
-        filename:     img.filename,
-        originalName: img.originalName,
-        url:          img.url,
-        isDicom:      img.isDicom,
-        uploadedAt:   img.uploadedAt,
-        mlAnalysis:   img.mlAnalysis,
-        // Return heatmap metadata but NOT the full base64 string in the list response
-        heatmap: img.heatmap ? {
-          type:           img.heatmap.type,
-          colormap:       img.heatmap.colormap,
-          affectedAreaPct: img.heatmap.affectedAreaPct,
-          severity:       img.heatmap.severity,
-          // Only include base64 if it exists — frontend uses this to render the image
-          base64:         img.heatmap.base64 || null
-        } : null
-      }));
+      // Skip population for test route since no user authentication
+      // await sample.populate([
+      //   { path: 'submittedBy', select: 'name email role' },
+      //   { path: 'images.uploadedBy', select: 'name' }
+      // ]);
 
       res.status(201).json({
         success: true,
         message: 'Sample uploaded and analyzed successfully',
         data: {
-          sample: {
-            _id:        sample._id,
-            sampleId:   sample.sampleId,
-            sampleType: sample.sampleType,
-            imageType:  sampleData.imageType,
-            patientInfo: sample.patientInfo,
-            clinicalInfo: sample.clinicalInfo,
-            aiAnalysis:   sample.aiAnalysis,
-            status:       sample.status,
-            createdAt:    sample.createdAt,
-            images:       slimImages
-          },
+          sample,
           mlAnalysis: req.files ? {
             imagesAnalyzed: req.files.length,
-            aiInsights:     sample.aiAnalysis
+            aiInsights: sample.aiAnalysis
           } : null
         }
       });
-
     } catch (error) {
       console.error('❌ Upload with analysis error:', error);
       res.status(500).json({
