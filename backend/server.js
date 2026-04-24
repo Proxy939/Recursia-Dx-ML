@@ -358,7 +358,7 @@ process.on('SIGTERM', () => {
 });
 
 // Connect to database and start server
-const PORT = process.env.PORT || 5001;
+const PORT = process.env.PORT || 5000;
 
 connectDB().then(() => {
   const server = app.listen(PORT, () => {
