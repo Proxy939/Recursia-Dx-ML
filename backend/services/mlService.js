@@ -2,7 +2,7 @@ import fetch from 'node-fetch';
 import FormData from 'form-data';
 import fs from 'fs';
 
-const ML_API_URL = process.env.ML_API_URL || 'http://localhost:5000';
+const ML_API_URL = process.env.ML_API_URL || 'http://localhost:5001';
 
 class MLService {
   static async predictImage(imagePath, filename, imageType = 'tissue') {
@@ -96,27 +96,36 @@ class MLService {
     }
   }
 
-  static async checkHealth() {
-    try {
-      const response = await fetch(`${ML_API_URL}/health`, {
-        signal: AbortSignal.timeout(5000) // 5 second timeout for health check
-      });
+  static async checkHealth(retries = 6, delayMs = 15000) {
+    // Retry up to `retries` times with `delayMs` gap.
+    // ML models can take 30-90s to load on first startup.
+    for (let attempt = 1; attempt <= retries; attempt++) {
+      try {
+        const response = await fetch(`${ML_API_URL}/health`, {
+          signal: AbortSignal.timeout(10000) // 10s per attempt
+        });
 
-      if (!response.ok) {
-        throw new Error(`Health check failed: ${response.status}`);
+        if (response.ok) {
+          const result = await response.json();
+          console.log(`✅ ML Gateway healthy on attempt ${attempt}`);
+          return { healthy: true, details: result };
+        }
+
+        console.warn(`⚠️  ML Gateway returned ${response.status} on attempt ${attempt}/${retries}`);
+      } catch (error) {
+        console.warn(`⚠️  ML Gateway not ready (attempt ${attempt}/${retries}): ${error.message}`);
       }
 
-      const result = await response.json();
-      return {
-        healthy: true,
-        details: result
-      };
-    } catch (error) {
-      return {
-        healthy: false,
-        error: error.message
-      };
+      if (attempt < retries) {
+        console.log(`   Waiting ${delayMs / 1000}s before retry...`);
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+      }
     }
+
+    return {
+      healthy: false,
+      error: `ML Gateway on port 5001 did not respond after ${retries} attempts. Make sure it is running: python api/app.py --port 5001`
+    };
   }
 
   static async getModelInfo() {
@@ -150,7 +159,7 @@ class MLService {
       const response = await fetch(`${ML_API_URL}/generate_heatmap`, {
         method: 'POST',
         body: formData,
-        timeout: 120000 // 2 minute timeout for heatmap generation
+        signal: AbortSignal.timeout(120000) // 2 minute timeout for heatmap generation
       });
 
       if (!response.ok) {

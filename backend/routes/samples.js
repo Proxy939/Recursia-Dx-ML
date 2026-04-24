@@ -387,14 +387,17 @@ router.post('/upload-with-analysis',
                                'Brain MRI';
 
       // CRITICAL: Check if ML service is available
+      console.log('🔍 Waiting for ML Gateway to be ready...');
       const mlHealthCheck = await MLService.checkHealth();
       if (!mlHealthCheck.healthy) {
         return res.status(503).json({
           success: false,
-          message: 'ML service is not available. Please start the ML server on port 5001.',
-          error: 'ML_SERVICE_UNAVAILABLE'
+          message: 'ML Gateway is not responding on port 5001. If you just started the server, wait 60 seconds for models to load, then try again.',
+          error: 'ML_SERVICE_UNAVAILABLE',
+          details: mlHealthCheck.error
         });
       }
+      console.log('✅ ML Gateway is ready — proceeding with analysis');
 
       // Generate unique sample ID
       const sampleCount = await Sample.countDocuments();
