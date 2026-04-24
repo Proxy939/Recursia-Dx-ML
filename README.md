@@ -1,39 +1,35 @@
-# RecursiaDx
+# RecursiaDx AI Diagnostic Platform
 
-
-AI-powered digital pathology platform for automated brain tumor detection, malaria detection, and platelet counting with AI-generated clinical reports.
+AI-powered digital pathology platform providing automated brain tumor detection and pneumonia detection, featuring Explainable AI (Grad-CAM) and AI-generated clinical reports.
 
 ## Overview
 
-RecursiaDx is a comprehensive medical image analysis platform that integrates state-of-the-art machine learning models for:
-- **Brain Tumor Analysis**: 4-class MRI classification using EfficientNetB3 (Glioma, Meningioma, Pituitary, No Tumor)
-- **Malaria Detection**: Blood smear analysis using InceptionV3
-- **Platelet Counting**: Automated platelet detection using YOLOv11
-- **AI Report Generation**: Gemini AI-powered clinical summary generation
+RecursiaDx is a comprehensive medical image analysis platform that integrates state-of-the-art machine learning models for clinical diagnostics:
+- **Brain Tumor Analysis**: 4-class MRI classification (Glioma, Meningioma, Pituitary, No Tumor) using EfficientNetB3.
+- **Pneumonia Detection**: Chest X-ray binary classification (Normal, Pneumonia) using a powerful ensemble of DenseNet121 + EfficientNet-B0.
+- **Explainable AI (XAI)**: Generates Grad-CAM heatmaps for both brain MRIs and chest X-rays to visualize the regions of interest the models focused on.
+- **AI Report Generation**: Integrates Google Gemini AI for synthesizing complex ML predictions and affected area metrics into professional, human-readable clinical summaries.
 
 ## Key Features
 
-✅ **Multi-Modal Analysis**
-- Brain tumor MRI classification (EfficientNetB3 Transfer Learning)
-- Malaria parasite detection (Transfer Learning)
-- Platelet counting (YOLO object detection)
+✅ **Multi-Modal Clinical Diagnostics**
+- Brain tumor MRI classification with spatial severity mapping.
+- Pneumonia chest X-ray detection via high-accuracy model ensembles.
 
-✅ **AI-Powered Workflows**
-- 5-step clinical workflow (Upload → Analysis → Dashboard → Review → Report)
-- Real-time ML inference with interactive visualizations
-- Gemini AI-generated clinical summaries and recommendations
+✅ **Explainable AI (XAI)**
+- Real-time Grad-CAM heatmap generation.
+- Dynamic calculation of affected area percentages.
+- Visual attention maps side-by-side with original scans.
 
-✅ **Professional Reporting**
-- Dynamic report generation with AI interpretation
-- Morphological findings analysis
-- Clinical recommendations
-- HIPAA-compliant data handling
+✅ **AI-Powered Workflows & Professional Reporting**
+- 5-step clinical workflow (Upload → Analysis → Dashboard → Review → Report).
+- Dynamic report generation with Gemini AI interpretation.
+- Severity scoring and confidence tiering.
 
 ✅ **Interactive UI**
-- Dark/Light theme support
-- Sample type adaptation (Blood vs. MRI)
-- Real-time status tracking
-- Demo mode for testing
+- Fully responsive dashboard with real-time status tracking.
+- Interactive imaging viewers (Original + Grad-CAM overlay).
+- Dark/Light theme support.
 
 ## Tech Stack
 
@@ -41,9 +37,9 @@ RecursiaDx is a comprehensive medical image analysis platform that integrates st
 |-----------|------------|
 | **Frontend** | React 18 + Vite + Tailwind CSS |
 | **Backend** | Node.js 18+ + Express + MongoDB |
-| **ML Models** | TensorFlow/Keras (EfficientNetB3) + PyTorch (InceptionV3) + YOLOv11 |
+| **ML Gateway** | Python Flask (Proxy and pre-processing) |
+| **ML Inference** | TensorFlow/Keras (EfficientNetB3) + PyTorch (DenseNet/EfficientNet) |
 | **AI Integration** | Google Gemini 2.5 Flash |
-| **Database** | MongoDB Atlas |
 
 ## Quick Start
 
@@ -52,11 +48,10 @@ RecursiaDx is a comprehensive medical image analysis platform that integrates st
 - Python 3.10+ with pip
 - MongoDB (local or Atlas)
 - **Git LFS** (required for model weights)
-- Google Gemini API key (optional, for AI reports)
 
 ### Installation
 
-1. **Install Git LFS** (required for model weights)
+1. **Install Git LFS** (required to pull large model weights)
    ```bash
    # Windows (with Git for Windows)
    git lfs install
@@ -68,10 +63,10 @@ RecursiaDx is a comprehensive medical image analysis platform that integrates st
    sudo apt install git-lfs && git lfs install
    ```
 
-2. **Clone repository** (models download automatically via LFS)
+2. **Clone repository**
    ```bash
-   git clone https://github.com/AyushX1602/Recursia-Dx-ML-.git
-   cd Recursia-Dx-ML-
+   git clone https://github.com/Proxy939/Recursia-Dx-ML.git
+   cd Recursia-Dx-ML
    ```
 
 3. **Backend setup**
@@ -91,42 +86,30 @@ RecursiaDx is a comprehensive medical image analysis platform that integrates st
    ```bash
    cd ml
    pip install -r requirements.txt
-   # Train the brain tumor model (one-time):
-   python train_brain_tumor.py
    ```
 
 ### Running the Application
 
-**Option 1: Cross-platform Python script (Recommended)**
-```bash
-python start_all.py
-```
+To run the application, you need to spin up the 4 different microservices:
 
-**Option 2: Platform-specific scripts**
 ```bash
-# Windows
-.\start_all.bat
-
-# macOS/Linux
-chmod +x start_all.sh
-./start_all.sh
-```
-
-**Option 3: Manual start (all platforms)**
-```bash
-# Terminal 1 - Brain Tumor API
+# Terminal 1 - Brain Tumor API (TensorFlow)
 cd ml
 python api/brain_tumor_api.py --port 5002
 
-# Terminal 2 - Main ML API
+# Terminal 2 - Pneumonia API (PyTorch)
 cd ml
-python api/app.py
+python api/pneumonia_api.py --port 5003
 
-# Terminal 3 - Backend
+# Terminal 3 - ML Gateway (Flask Router)
+cd ml
+python api/app.py --port 5001
+
+# Terminal 4 - Node.js Backend
 cd backend
 node server.js
 
-# Terminal 4 - Frontend
+# Terminal 5 - React Frontend
 cd client
 npm run dev
 ```
@@ -138,108 +121,41 @@ Access the application at `http://localhost:5173`
 ### Backend (.env)
 ```env
 MONGODB_URI=mongodb://localhost:27017/recursiadx
-PORT=5001
-GEMINI_API_KEY=your_gemini_api_key_here  # Optional
-ML_SERVICE_URL=http://localhost:5000
-BRAIN_TUMOR_API_URL=http://localhost:5002
+PORT=5000
+GEMINI_API_KEY=your_gemini_api_key_here
+ML_SERVICE_URL=http://localhost:5001
 ```
 
-### ML (.env)
-```env
-BRAIN_TUMOR_MODEL_PATH=models/weights/brain_tumor_efficientnetb3.h5
-MALARIA_MODEL_PATH=models/weights/malaria_inceptionv3.pth
-PLATELET_MODEL_PATH=models/weights/platelet_yolov8.pt
-```
-
-## Workflow Steps
-
-1. **Sample Upload** - Upload MRI/blood images
-2. **Analysis** - ML models process the images
-3. **Dashboard** - View results and visualizations
-4. **Technician Review** - Approve or request re-analysis
-5. **Report Generation** - Generate AI-powered clinical reports
+### ML Gateway Configuration
+The ML Gateway (`app.py`) internally routes traffic to:
+- `BRAIN_TUMOR_API_URL=http://localhost:5002`
+- `PNEUMONIA_API_URL=http://localhost:5003`
 
 ## Project Structure
 
 ```
 RecursiaDx/
-├── backend/          # Node.js API server
-│   ├── routes/      # API endpoints
-│   ├── models/      # MongoDB schemas
-│   ├── services/    # Gemini integration
-│   └── server.js    # Entry point
-├── client/          # React frontend
-│   └── src/
-│       ├── components/   # UI components
-│       └── lib/         # Utilities
-├── ml/              # ML services
+├── backend/          # Node.js API server (MongoDB, Gemini integrations)
+├── client/           # React frontend
+├── ml/               # Python Machine Learning microservices
 │   ├── api/
-│   │   ├── app.py              # Malaria/Platelet API (port 5000)
-│   │   └── brain_tumor_api.py  # Brain Tumor API (port 5002)
-│   ├── models/
-│   │   ├── malaria_predictor.py
-│   │   ├── platelet_counter.py
-│   │   └── weights/            # Model weight files
-│   └── train_brain_tumor.py    # Training script
-└── test/            # Test images
-
+│   │   ├── app.py               # Main ML Gateway proxy (Port 5001)
+│   │   ├── brain_tumor_api.py   # TF/Keras inference + Grad-CAM (Port 5002)
+│   │   └── pneumonia_api.py     # PyTorch ensemble + Grad-CAM (Port 5003)
+│   └── pneumonia_detection/     # Custom PyTorch model package
+└── test_images/      # Sample MRIs and X-rays for testing
 ```
 
 ## Model Information
 
-| Model | Task | Architecture | Accuracy |
+| Model | Task | Framework | Metric |
 |-------|------|--------------|----------|
-| EfficientNetB3 | Brain Tumor Detection (4-class) | Transfer Learning (ImageNet) | ~99% |
-| InceptionV3 | Malaria Detection | Transfer Learning | ~95% |
-| YOLOv11n | Platelet Counting | Object Detection | ~90% |
-
-## API Endpoints
-
-### Backend API (Port 5001)
-- `POST /api/samples/upload` - Upload sample images
-- `POST /api/samples/demo-analysis` - Demo mode analysis
-- `POST /api/reports/generate/:id` - Generate report
-- `POST /api/reports/generate-full/:id` - Generate with Gemini
-
-### ML APIs
-- **Brain Tumor**: `http://localhost:5002/analyze` (EfficientNetB3)
-- **Blood**: `http://localhost:5000/analyze` (Malaria + Platelet)
-
-## Gemini Integration
-
-The platform uses Google Gemini 2.5 Flash for:
-- Clinical summary generation
-- Result interpretation
-- Morphological findings description
-- Clinical recommendations
-- Diagnostic conclusions
-
-**Without Gemini API key**: System falls back to rule-based summaries.
-
-## Documentation
-
-- [Startup Guide](STARTUP_GUIDE.md)
-- [Model Setup](MODEL_SETUP.md)
-- [ML Setup](ml/README.md)
-- [Backend API](backend/README.md)
-
-## Contributing
-
-1. Fork the repository
-2. Create feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit changes (`git commit -m 'Add amazing feature'`)
-4. Push to branch (`git push origin feature/amazing-feature`)
-5. Open Pull Request
+| **EfficientNetB3** | Brain Tumor Detection (4-class) | TensorFlow | ~99% Accuracy |
+| **DenseNet121 + EfficientNet-B0** | Pneumonia Detection (Binary ensemble) | PyTorch | 0.88 AUC |
 
 ## License
 
 This project is for educational and research purposes.
-
-## Acknowledgments
-
-- EfficientNet by Google Research
-- Gemini AI by Google
-- Open-source ML communities
 
 ---
 
