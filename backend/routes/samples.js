@@ -571,27 +571,52 @@ router.post('/upload-with-analysis',
             }
           }
 
-          // Generate REAL heatmap using ML service - Only for tissue images
+          // Store Grad-CAM heatmap — now embedded directly in ML prediction for both brain & pneumonia
           if (imageType === 'tissue') {
-            console.log(`🎨 Generating real heatmap for image ${i + 1}/${req.files.length}`);
-            const heatmapResult = await generateRealHeatmap(file.path, file.filename);
-
-            if (heatmapResult.success) {
-              imageData.heatmap = heatmapResult.heatmap;
-              console.log(`✅ Real heatmap generated for ${file.filename}`);
+            const btPrediction = mlResult?.prediction;
+            if (btPrediction?.heatmap_base64) {
+              // Brain tumor Grad-CAM returned inline from brain_tumor_api.py
+              const heatB64 = btPrediction.heatmap_base64; // already has data:image/png;base64, prefix
+              imageData.heatmap = {
+                base64: heatB64,
+                type: 'gradcam',
+                colormap: 'jet',
+                affectedAreaPct: btPrediction.affected_area_pct ?? null,
+                severity: btPrediction.severity ?? null
+              };
+              // Also surface severity/affectedAreaPct in mlAnalysis for easy frontend access
+              if (imageData.mlAnalysis) {
+                imageData.mlAnalysis.severity     = btPrediction.severity ?? null;
+                imageData.mlAnalysis.affectedAreaPct = btPrediction.affected_area_pct ?? null;
+              }
+              console.log(`✅ Brain Grad-CAM stored for ${file.filename} | severity=${btPrediction.severity} | affected=${btPrediction.affected_area_pct}%`);
             } else {
-              console.log(`⚠️ Heatmap generation skipped for ${file.filename}: ${heatmapResult.error}`);
-              // Don't add mock heatmap - leave it undefined
+              // Fallback: try the legacy /generate_heatmap endpoint
+              console.log(`⚠️  No inline Grad-CAM from brain API — trying legacy endpoint for ${file.filename}`);
+              const heatmapResult = await generateRealHeatmap(file.path, file.filename);
+              if (heatmapResult.success) {
+                imageData.heatmap = heatmapResult.heatmap;
+                console.log(`✅ Legacy heatmap generated for ${file.filename}`);
+              } else {
+                console.log(`⚠️  Heatmap skipped for ${file.filename}: ${heatmapResult.error}`);
+              }
             }
           } else if (imageType === 'pneumonia' || imageType === 'lung' || imageType === 'xray') {
-            // Pneumonia analysis returns its own heatmap from the API
-            if (mlResult && mlResult.prediction && mlResult.prediction.heatmap_base64) {
+            // Pneumonia analysis returns its own Grad-CAM from the API
+            if (mlResult?.prediction?.heatmap_base64) {
+              const heatB64 = mlResult.prediction.heatmap_base64;
               imageData.heatmap = {
-                base64: `data:image/png;base64,${mlResult.prediction.heatmap_base64}`,
+                base64: heatB64.startsWith('data:') ? heatB64 : `data:image/png;base64,${heatB64}`,
                 type: 'gradcam',
-                colormap: 'jet'
+                colormap: 'jet',
+                affectedAreaPct: mlResult.prediction.affected_area_pct ?? null,
+                severity: mlResult.prediction.severity ?? null
               };
-              console.log(`✅ Pneumonia Grad-CAM heatmap stored for ${file.filename}`);
+              if (imageData.mlAnalysis) {
+                imageData.mlAnalysis.severity     = mlResult.prediction.severity ?? null;
+                imageData.mlAnalysis.affectedAreaPct = mlResult.prediction.affected_area_pct ?? null;
+              }
+              console.log(`✅ Pneumonia Grad-CAM stored for ${file.filename}`);
             }
           }
 

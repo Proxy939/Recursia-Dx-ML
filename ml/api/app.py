@@ -329,7 +329,12 @@ def predict_tumor():
                                 'is_tumor': bt_data['predicted_class'] != 'notumor',
                                 'probabilities': bt_data.get('all_class_probabilities', {}),
                                 'risk_level': 'High Risk' if bt_data['predicted_class'] != 'notumor' else 'Low Risk',
-                                'risk_assessment': 'high' if bt_data['predicted_class'] != 'notumor' else 'low'
+                                'risk_assessment': 'high' if bt_data['predicted_class'] != 'notumor' else 'low',
+                                # Grad-CAM fields — pass through from brain_tumor_api
+                                'heatmap_base64': bt_data.get('heatmap_base64'),
+                                'severity': bt_data.get('severity'),
+                                'affected_area_pct': bt_data.get('affected_area_pct'),
+                                'gradcam_enabled': bt_data.get('gradcam_enabled', False)
                             }
                         else:
                             raise Exception(bt_data.get('error', 'Brain Tumor API prediction failed'))
@@ -628,7 +633,12 @@ def batch_predict():
                                     'is_tumor': bt_data['predicted_class'] != 'notumor',
                                     'probabilities': bt_data.get('all_class_probabilities', {}),
                                     'risk_level': 'High Risk' if bt_data['predicted_class'] != 'notumor' else 'Low Risk',
-                                    'risk_assessment': 'high' if bt_data['predicted_class'] != 'notumor' else 'low'
+                                    'risk_assessment': 'high' if bt_data['predicted_class'] != 'notumor' else 'low',
+                                    # Grad-CAM fields — pass through from brain_tumor_api
+                                    'heatmap_base64': bt_data.get('heatmap_base64'),
+                                    'severity': bt_data.get('severity'),
+                                    'affected_area_pct': bt_data.get('affected_area_pct'),
+                                    'gradcam_enabled': bt_data.get('gradcam_enabled', False)
                                 }
                                 results.append({
                                     'filename': file.filename,
