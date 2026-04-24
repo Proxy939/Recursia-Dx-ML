@@ -99,13 +99,12 @@ export function ThemeProvider({ children }) {
               setCurrentTheme(savedTheme)
             }
             
-            // Set dark mode
+            // Set dark mode — default to light mode if no preference saved
             if (savedDarkMode !== null) {
               setIsDarkMode(savedDarkMode === 'true')
             } else {
-              // Check system preference
-              const prefersDark = getSystemThemePreference()
-              setIsDarkMode(prefersDark)
+              // Always default to light mode on first visit
+              setIsDarkMode(false)
             }
           }
         } catch (error) {
@@ -114,22 +113,10 @@ export function ThemeProvider({ children }) {
       })
     }
 
-    // Debounced system theme change handler
-    const handleSystemThemeChange = debounce((e) => {
-      if (mounted && localStorage.getItem(STORAGE_KEYS.darkMode) === null) {
-        setIsDarkMode(e.matches)
-      }
-    }, 100)
-
-    // Listen for system theme changes
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
-    
     initializeTheme()
-    mediaQuery.addEventListener('change', handleSystemThemeChange)
     
     return () => {
       mounted = false
-      mediaQuery.removeEventListener('change', handleSystemThemeChange)
     }
   }, [])
 
