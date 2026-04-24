@@ -836,6 +836,12 @@ def get_model_info():
         }), 500
 
 if __name__ == '__main__':
+    import argparse
+    parser = argparse.ArgumentParser(description='RecursiaDx ML API Gateway')
+    parser.add_argument('--port', type=int, default=int(os.getenv('ML_API_PORT', 5001)),
+                        help='Port to run the ML API gateway on (default: 5001)')
+    args = parser.parse_args()
+
     logger.info("Starting RecursiaDx ML API Server")
     logger.info("=" * 70)
     
@@ -845,11 +851,10 @@ if __name__ == '__main__':
         logger.info("=" * 70)
         
         # Run Flask app
-        port = int(os.getenv('ML_API_PORT', 5000))
-        logger.info(f"🚀 Starting server on port {port}...")
+        logger.info(f"🚀 Starting ML Gateway on port {args.port}...")
         app.run(
             host='0.0.0.0',
-            port=port,
+            port=args.port,
             debug=False,
             threaded=True
         )
