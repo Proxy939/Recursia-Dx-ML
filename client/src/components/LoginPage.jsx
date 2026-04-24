@@ -89,16 +89,16 @@ export function LoginPage({ onLogin, onBackToHome, onGoToSignup }) {
               <div>
                 <h1 className="text-2xl font-bold">RecursiaDx</h1>
                 <Badge variant="outline" className="text-xs">
-                  Digital Pathology Platform
+                  Medical Imaging Diagnostics
                 </Badge>
               </div>
             </div>
             
             <h2 className="text-3xl font-bold text-gray-900 mb-4">
-              Welcome back to the future of pathology
+              Welcome back to the future of diagnostics
             </h2>
             <p className="text-gray-600 text-lg">
-              Access your digital pathology workspace and continue transforming healthcare with AI-powered analysis.
+              Access your medical imaging workspace and continue transforming healthcare with AI-powered analysis.
             </p>
           </div>
 
@@ -136,7 +136,7 @@ export function LoginPage({ onLogin, onBackToHome, onGoToSignup }) {
               
               <CardTitle className="text-2xl">Sign in to your account</CardTitle>
               <CardDescription>
-                Access your digital pathology workspace
+                Access your diagnostic workspace
               </CardDescription>
             </CardHeader>
 

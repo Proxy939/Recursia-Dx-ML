@@ -1,5 +1,5 @@
 // API configuration and utility functions
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
 
 // Cookie expiry time (1 hour in seconds)
 const COOKIE_EXPIRY_SECONDS = 60 * 60; // 1 hour

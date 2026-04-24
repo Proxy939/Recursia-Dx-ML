@@ -14,6 +14,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { toast } from 'sonner'
 import { Upload, User, FileImage, AlertCircle, CheckCircle2, Camera, Stethoscope, Brain, Loader2, Play, FlaskConical, Microscope } from 'lucide-react'
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api'
+
 export function SampleUpload({ onNext, onSampleCreated }) {
   const [patientData, setPatientData] = useState({
     patientInfo: {
@@ -159,7 +161,7 @@ export function SampleUpload({ onNext, onSampleCreated }) {
       }, 500)
       
       // Call backend demo endpoint
-      const response = await fetch(`http://localhost:5000/api/samples/demo-analysis?type=${demoType}`, {
+      const response = await fetch(`${API_BASE_URL}/samples/demo-analysis?type=${demoType}`, {
         method: 'POST'
       })
       
@@ -254,7 +256,7 @@ export function SampleUpload({ onNext, onSampleCreated }) {
         })
       }, 500)
       
-      const response = await fetch('http://localhost:5000/api/samples/upload-with-analysis', {
+      const response = await fetch(`${API_BASE_URL}/samples/upload-with-analysis`, {
         method: 'POST',
         body: formData
       })
@@ -569,7 +571,7 @@ export function SampleUpload({ onNext, onSampleCreated }) {
                 )}
               </CardTitle>
               <CardDescription>
-                Upload medical images for AI-powered analysis and pathologist review
+                Upload medical images for AI-powered analysis and radiologist review
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">

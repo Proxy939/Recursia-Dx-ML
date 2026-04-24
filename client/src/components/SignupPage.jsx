@@ -65,7 +65,7 @@ export function SignupPage({ onSignup, onBackToHome, onGoToLogin }) {
 
   const roles = [
     { value: 'technician', label: 'Medical Technologist', icon: Users },
-    { value: 'pathologist', label: 'Pathologist', icon: User },
+    { value: 'pathologist', label: 'Radiologist', icon: User },
     { value: 'administrator', label: 'Laboratory Director/Administrator', icon: Building2 },
     { value: 'resident', label: 'Resident/Fellow', icon: Award }
   ]
@@ -323,7 +323,7 @@ export function SignupPage({ onSignup, onBackToHome, onGoToLogin }) {
               <Label htmlFor="department">Department (Optional)</Label>
               <Input
                 id="department"
-                placeholder="e.g., Pathology, Clinical Laboratory"
+                placeholder="e.g., Radiology, Diagnostic Imaging"
                 value={formData.department}
                 onChange={(e) => handleInputChange('department', e.target.value)}
               />
@@ -513,7 +513,7 @@ export function SignupPage({ onSignup, onBackToHome, onGoToLogin }) {
             <div>
               <h1 className="text-2xl font-bold">RecursiaDx</h1>
               <Badge variant="outline" className="text-xs">
-                Digital Pathology Platform
+                Medical Imaging Diagnostics
               </Badge>
             </div>
           </div>
@@ -521,7 +521,7 @@ export function SignupPage({ onSignup, onBackToHome, onGoToLogin }) {
             Create your account
           </h2>
           <p className="text-gray-600">
-            Join the future of digital pathology
+            Join the future of medical imaging diagnostics
           </p>
         </div>
 

@@ -364,7 +364,7 @@ router.post('/upload-with-analysis',
           patientInfo: {
             name: 'Unknown Patient',
             age: 0,
-            gender: 'Unknown'
+            gender: 'Other'
           },
           sampleType: 'Brain MRI',
           collectionDate: new Date().toISOString()
@@ -425,14 +425,43 @@ router.post('/upload-with-analysis',
         for (let i = 0; i < req.files.length; i++) {
           const file = req.files[i];
           const mlResult = mlResults.success ? mlResults.predictions[i] : null;
+          
+          // Convert DICOM files to PNG for browser display
+          let displayFilename = file.filename;
+          let displayUrl = `/uploads/${file.filename}`;
+          const isDicom = file.originalname.toLowerCase().endsWith('.dcm');
+          
+          if (isDicom) {
+            try {
+              const { execSync } = await import('child_process');
+              const pngFilename = file.filename.replace(/\.dcm$/i, '.png');
+              const pngPath = path.join(process.cwd(), 'uploads', pngFilename);
+              const dcm2pngScript = path.join(process.cwd(), 'ml', 'utils', 'dcm2png.py');
+              
+              // Convert using standalone Python script (no ML proxy dependency)
+              execSync(`python "${dcm2pngScript}" "${file.path}" "${pngPath}"`, {
+                timeout: 30000,
+                stdio: 'pipe'
+              });
+              
+              displayFilename = pngFilename;
+              displayUrl = `/uploads/${pngFilename}`;
+              console.log(`📸 Converted DICOM → PNG: ${pngFilename}`);
+            } catch (convertErr) {
+              console.warn(`⚠️ DICOM conversion error: ${convertErr.message}`);
+              // Fallback: still proceed with .dcm URL (won't display but analysis works)
+            }
+          }
 
           const imageData = {
-            filename: file.filename,
+            filename: displayFilename,
             originalName: file.originalname,
-            mimetype: file.mimetype,
+            mimetype: isDicom ? 'image/png' : file.mimetype,
             size: file.size,
             path: file.path,
-            url: `/uploads/${file.filename}`, // Add URL for frontend access
+            url: displayUrl, // Points to displayable PNG (or original if not DICOM)
+            isDicom: isDicom,
+            originalDicomPath: isDicom ? file.path : undefined,
             uploadedBy: null, // Temporarily removed for testing
             uploadedAt: new Date()
           };
@@ -445,7 +474,7 @@ router.post('/upload-with-analysis',
             if (imageType === 'pneumonia' || imageType === 'lung' || imageType === 'xray') {
               // Pneumonia analysis - chest X-ray
               imageData.mlAnalysis = {
-                prediction: prediction.is_pneumonia ? 'malignant' : 'benign',
+                prediction: prediction.predicted_class || (prediction.is_pneumonia ? 'Pneumonia' : 'Normal'),
                 confidence: Number(prediction.confidence) || 0.5,
                 riskAssessment: prediction.is_pneumonia ? 'high' : 'low',
                 processingTime: prediction.processing_time || 0,
@@ -560,6 +589,20 @@ router.post('/upload-with-analysis',
           };
         }
       }
+
+      // Ensure required fields have valid values before saving
+      if (!sampleData.patientInfo) sampleData.patientInfo = {};
+      sampleData.patientInfo.patientId = sampleData.patientInfo.patientId || `PT-${Date.now()}`;
+      sampleData.patientInfo.name = sampleData.patientInfo.name || 'Anonymous Patient';
+      sampleData.patientInfo.age = parseInt(sampleData.patientInfo.age) || 0;
+      // Ensure gender is a valid enum value
+      const validGenders = ['Male', 'Female', 'Other'];
+      if (!validGenders.includes(sampleData.patientInfo.gender)) {
+        sampleData.patientInfo.gender = 'Other';
+      }
+      // Ensure collectionInfo has a date
+      if (!sampleData.collectionInfo) sampleData.collectionInfo = {};
+      sampleData.collectionInfo.collectionDate = sampleData.collectionInfo.collectionDate || new Date();
 
       // Create sample with all data
       const sample = await Sample.create({

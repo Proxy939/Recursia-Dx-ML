@@ -23,6 +23,8 @@ import {
   Calendar
 } from 'lucide-react'
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api'
+
 export function ReportGeneration({ sample, onNext }) {
   const [reportStatus, setReportStatus] = useState('idle') // idle, generating, completed, error
   const [reportData, setReportData] = useState(null)
@@ -33,7 +35,7 @@ export function ReportGeneration({ sample, onNext }) {
 
   // Lab info with Indian phone
   const labInfo = {
-    name: 'RecursiaDx Digital Pathology Lab',
+    name: 'RecursiaDx Medical Imaging Lab',
     address: 'Sector 62, Noida, Uttar Pradesh 201301, India',
     phone: '+91 99999 88888',
     email: 'reports@recursiadx.com',
@@ -73,7 +75,7 @@ export function ReportGeneration({ sample, onNext }) {
       // Pneumonia analysis — uses isPneumonia flag and different probability structure
       const confidence = analysis.confidence || 0
       const confidencePct = confidence <= 1 ? confidence * 100 : confidence
-      const detected = analysis.isPneumonia || analysis.prediction === 'malignant'
+      const detected = analysis.isPneumonia || analysis.prediction === 'malignant' || analysis.prediction === 'Pneumonia'
 
       return {
         prediction: detected ? 'Pneumonia Detected' : 'Normal',
@@ -89,19 +91,32 @@ export function ReportGeneration({ sample, onNext }) {
       }
     }
     
-    // Brain tumor analysis
-    let tumorProb = analysis.metadata?.probabilities?.tumor || analysis.confidence || 0
-    if (tumorProb <= 1) tumorProb = tumorProb * 100
+    // Brain tumor analysis - use class probabilities
+    const probs = analysis.classProbabilities || analysis.metadata?.prediction?.probabilities || analysis.metadata?.probabilities || {}
+    let notumorProb = probs.notumor ?? probs.Notumor ?? probs['no tumor'] ?? probs['No Tumor'] ?? null
+    let tumorProb
+    if (notumorProb !== null) {
+      if (notumorProb <= 1) notumorProb = notumorProb * 100
+      tumorProb = 100 - notumorProb
+    } else {
+      tumorProb = analysis.prediction === 'malignant' ? (analysis.confidence <= 1 ? analysis.confidence * 100 : analysis.confidence) : 0
+    }
     const isPositive = tumorProb >= 54
     const riskLevel = tumorProb >= 70 ? 'High' : tumorProb >= 50 ? 'Medium' : 'Low'
 
-    // Extract tumor type classification if available
+    // Extract tumor type classification
     const tumorType = analysis.tumorType || analysis.metadata?.prediction?.predicted_class || null
     const tumorTypeInfo = analysis.tumorTypeInfo || null
+    const predictedClass = tumorType?.toLowerCase()
+    const tumorLabel = predictedClass === 'glioma' ? 'Glioma Detected' :
+                       predictedClass === 'meningioma' ? 'Meningioma Detected' :
+                       predictedClass === 'pituitary' ? 'Pituitary Tumor Detected' :
+                       predictedClass === 'notumor' ? 'No Tumor Detected' :
+                       isPositive ? 'Tumor Detected' : 'No Tumor Detected'
 
     return {
-      prediction: isPositive ? 'Malignant' : 'Benign',
-      confidence: tumorProb.toFixed(1),
+      prediction: tumorLabel,
+      confidence: (analysis.confidence <= 1 ? analysis.confidence * 100 : analysis.confidence).toFixed(1),
       riskLevel,
       tumorProbability: tumorProb.toFixed(1),
       normalProbability: (100 - tumorProb).toFixed(1),
@@ -122,7 +137,7 @@ export function ReportGeneration({ sample, onNext }) {
 
     setIsGeneratingSummary(true)
     try {
-      const response = await fetch(`http://localhost:5000/api/reports/generate-summary/${sample._id}`, {
+      const response = await fetch(`${API_BASE_URL}/reports/generate-summary/${sample._id}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       })
@@ -138,7 +153,7 @@ export function ReportGeneration({ sample, onNext }) {
       setClinicalSummary({
         summary: analysisResults?.isPositive 
           ? `AI-assisted analysis detected potential abnormalities with ${analysisResults.confidence}% confidence. Risk assessment: ${analysisResults.riskLevel}. Further clinical evaluation recommended.`
-          : `AI-assisted analysis confirms normal findings with ${analysisResults?.confidence || 0}% confidence. No malignant cells or abnormal tissue architecture identified.`,
+          : `AI-assisted analysis confirms normal findings with ${analysisResults?.confidence || 0}% confidence. No abnormalities or suspicious regions identified.`,
         generatedBy: 'Fallback'
       })
     } finally {
@@ -151,7 +166,7 @@ export function ReportGeneration({ sample, onNext }) {
     if (!sample?._id) return null
 
     try {
-      const response = await fetch(`http://localhost:5000/api/reports/generate-full/${sample._id}`, {
+      const response = await fetch(`${API_BASE_URL}/reports/generate-full/${sample._id}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       })
@@ -188,7 +203,7 @@ export function ReportGeneration({ sample, onNext }) {
     }, 300)
 
     try {
-      const response = await fetch(`http://localhost:5000/api/reports/generate/${sample._id}`, {
+      const response = await fetch(`${API_BASE_URL}/reports/generate/${sample._id}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -243,7 +258,7 @@ export function ReportGeneration({ sample, onNext }) {
         toast.info('Generating PDF report...')
         
         // Call backend PDF endpoint
-        const response = await fetch(`http://localhost:5000/api/reports/download-pdf/${sample._id}`)
+        const response = await fetch(`${API_BASE_URL}/reports/download-pdf/${sample._id}`)
         
         if (!response.ok) {
           throw new Error('Failed to generate PDF')
@@ -302,7 +317,7 @@ export function ReportGeneration({ sample, onNext }) {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Report Generation</h1>
-          <p className="text-muted-foreground">Step 5: Generate professional pathology report</p>
+          <p className="text-muted-foreground">Step 5: Generate professional diagnostic report</p>
         </div>
         <Badge variant="outline">
           <FileText className="h-4 w-4 mr-2" />
@@ -615,8 +630,8 @@ export function ReportGeneration({ sample, onNext }) {
                         <p className="text-sm">{geminiReport.report.content.interpretation || 'Analysis interpretation not available.'}</p>
                       </div>
                       <div>
-                        <h4 className="font-medium text-sm text-muted-foreground mb-1">Morphological Findings</h4>
-                        <p className="text-sm">{geminiReport.report.content.morphologicalFindings || 'Imaging findings not available.'}</p>
+                        <h4 className="font-medium text-sm text-muted-foreground mb-1">Imaging Findings</h4>
+                        <p className="text-sm">{geminiReport.report.content.morphologicalFindings || 'Imaging findings not yet available.'}</p>
                       </div>
                     </CardContent>
                   </Card>
@@ -658,7 +673,7 @@ export function ReportGeneration({ sample, onNext }) {
                 {/* Footer - Signatures */}
                 <div className="border-t pt-6">
                   <div className="text-center text-sm text-muted-foreground mb-4">
-                    This report was generated using RecursiaDx AI-powered digital pathology platform.
+                    This report was generated using RecursiaDx AI-powered medical imaging diagnostics platform.
                     <br />
                     For questions, contact: {labInfo.phone}
                   </div>
@@ -695,7 +710,7 @@ export function ReportGeneration({ sample, onNext }) {
                     variant="outline" 
                     onClick={() => {
                       // Update sample status in backend
-                      fetch(`http://localhost:5000/api/samples/${sample._id}/status`, {
+                      fetch(`${API_BASE_URL}/samples/${sample._id}/status`, {
                         method: 'PATCH',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ status: 'Completed' })
@@ -711,7 +726,7 @@ export function ReportGeneration({ sample, onNext }) {
                     size="lg"
                     onClick={() => {
                       // Update sample status
-                      fetch(`http://localhost:5000/api/samples/${sample._id}/status`, {
+                      fetch(`${API_BASE_URL}/samples/${sample._id}/status`, {
                         method: 'PATCH',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ status: 'Completed' })

@@ -1,234 +1,267 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import OpenAI from 'openai';
 
-// Lazy-initialize Gemini API (called after dotenv loads)
-let genAI = null;
+// Lazy-initialize OpenAI client
+let client = null;
 
-function getGenAI() {
-    if (!genAI && process.env.GEMINI_API_KEY) {
-        console.log('🤖 Initializing Gemini AI with API key...');
-        genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+function getClient() {
+    if (!client && process.env.OPENAI_API_KEY) {
+        client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     }
-    return genAI;
+    return client;
 }
 
 /**
- * Generate comprehensive pathology report using Gemini
+ * Core helper — call GPT-4o-mini with a system + user prompt, return text.
+ */
+async function callGPT(systemPrompt, userPrompt) {
+    const ai = getClient();
+    if (!ai) throw new Error('OPENAI_API_KEY not configured');
+
+    const completion = await ai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user',   content: userPrompt }
+        ],
+        temperature: 0.3,
+        max_tokens: 1024
+    });
+
+    return completion.choices[0].message.content.trim();
+}
+
+// ── Modality helpers ───────────────────────────────────────────────────────────
+
+function resolveModality(sampleType) {
+    const t = (sampleType || '').toLowerCase();
+    if (t.includes('pneumonia') || t.includes('chest') || t.includes('xray') || t.includes('x-ray')) {
+        return 'pneumonia';
+    }
+    return 'brain_tumor';
+}
+
+function modalityLabel(modality) {
+    return modality === 'pneumonia'
+        ? 'Chest X-Ray (Pneumonia Detection)'
+        : 'Brain MRI (Tumor Detection)';
+}
+
+// ── Full Report ───────────────────────────────────────────────────────────────
+
+/**
+ * Generate a comprehensive radiology report using OpenAI GPT-4o-mini.
  */
 export async function generateFullReport(sample, mlResults) {
-    const ai = getGenAI();
-    if (!ai) {
-        console.warn('⚠️ GEMINI_API_KEY not set - using fallback');
-        return { success: false, error: 'Gemini API key not configured' };
+    if (!getClient()) {
+        console.warn('⚠️ OPENAI_API_KEY not set - using fallback');
+        return { success: false, error: 'OpenAI API key not configured' };
     }
 
+    const modality = resolveModality(sample.sampleType);
+    const isPneumonia = modality === 'pneumonia';
+
     try {
-        console.log('🤖 Calling Gemini API for full report...');
-        const model = ai.getGenerativeModel({ model: 'gemini-2.5-flash' });
+        console.log('🤖 Calling OpenAI GPT-4o-mini for full radiology report...');
 
-        const prompt = `You are an expert pathologist AI assistant. Generate a professional pathology report based on the following data.
+        const system = `You are an expert radiologist AI assistant generating professional clinical imaging reports. 
+Write in a formal, precise medical style. Always state that AI analysis requires verification by a qualified radiologist.`;
 
-SAMPLE INFORMATION:
+        const user = `Generate a radiology report for the following imaging study.
+
+STUDY INFORMATION:
 - Sample ID: ${sample.sampleId || sample._id}
-- Sample Type: ${sample.sampleType || 'Brain MRI'}
+- Imaging Modality: ${modalityLabel(modality)}
 - Collection Date: ${sample.sampleInfo?.collectionDate || 'Not specified'}
 
-PATIENT INFORMATION:
-- Name: ${sample.patientInfo?.name || 'Not provided'}
+PATIENT:
+- Name: ${sample.patientInfo?.name || 'Anonymous'}
 - Age: ${sample.patientInfo?.age || 'Unknown'}
 - Gender: ${sample.patientInfo?.gender || 'Unknown'}
 
 AI ANALYSIS RESULTS:
 - Total Images Analyzed: ${mlResults.totalImages || 0}
-- Detection Result: ${mlResults.isPositive ? 'POSITIVE (Abnormal)' : 'NEGATIVE (Normal)'}
-- Tumor/Detection Probability: ${mlResults.tumorProbability?.toFixed(1) || 0}%
-- AI Confidence: ${mlResults.confidence?.toFixed(1) || 0}%
+- Finding: ${mlResults.isPositive ? (isPneumonia ? 'PNEUMONIA DETECTED' : 'TUMOR DETECTED') : 'NORMAL — No Pathology Detected'}
+- ${isPneumonia ? 'Pneumonia' : 'Tumor'} Probability: ${(mlResults.tumorProbability || 0).toFixed(1)}%
+- Model Confidence: ${(mlResults.confidence || 0).toFixed(1)}%
 - Risk Level: ${mlResults.riskLevel || 'Unknown'}
+${isPneumonia ? `- Severity: ${mlResults.severity || 'Unknown'}` : `- Tumor Class: ${mlResults.tumorClass || 'Unknown'}`}
 
-Generate a JSON response with the following structure:
+Return ONLY valid JSON (no markdown fences) with this exact structure:
 {
-  "clinicalSummary": "2-3 sentence professional summary of findings",
-  "interpretation": "Detailed interpretation of the AI analysis results (3-4 sentences)",
-  "recommendations": ["Array of 2-3 clinical recommendations"],
-  "morphologicalFindings": "Description of tissue/cell morphology based on results",
-  "conclusion": "Final diagnostic conclusion (1-2 sentences)"
-}
+  "clinicalSummary": "2-3 sentence professional summary of imaging findings",
+  "interpretation": "Detailed radiological interpretation of AI results (3-4 sentences, use imaging terminology)",
+  "recommendations": ["recommendation 1", "recommendation 2", "recommendation 3"],
+  "imagingFindings": "Description of key imaging characteristics observed",
+  "conclusion": "Final radiological impression (1-2 sentences)"
+}`;
 
-Be professional, use appropriate medical terminology, and always include disclaimers about AI-assisted analysis requiring pathologist confirmation.`;
+        const text = await callGPT(system, user);
 
-        const result = await model.generateContent(prompt);
-        const response = await result.response;
-        const text = response.text().trim();
-
-        // Parse JSON from response
         let reportContent;
         try {
-            // Extract JSON from potential markdown code blocks
             const jsonMatch = text.match(/\{[\s\S]*\}/);
-            if (jsonMatch) {
-                reportContent = JSON.parse(jsonMatch[0]);
-            } else {
-                throw new Error('No JSON found in response');
-            }
-        } catch (parseError) {
-            console.error('Failed to parse Gemini response:', parseError);
+            reportContent = JSON.parse(jsonMatch ? jsonMatch[0] : text);
+        } catch {
             reportContent = {
                 clinicalSummary: text.substring(0, 300),
                 interpretation: 'AI-generated interpretation available.',
-                recommendations: ['Consult with pathologist for confirmation'],
-                morphologicalFindings: 'See detailed analysis above.',
-                conclusion: 'AI analysis complete. Pathologist review recommended.'
+                recommendations: ['Consult with a radiologist for confirmation'],
+                imagingFindings: 'See detailed analysis above.',
+                conclusion: 'AI analysis complete. Radiologist review recommended.'
             };
         }
 
         return {
             success: true,
-            generatedBy: 'Gemini AI',
+            generatedBy: 'OpenAI GPT-4o-mini',
             timestamp: new Date().toISOString(),
             content: reportContent
         };
 
     } catch (error) {
-        console.error('Gemini full report error:', error);
-        return {
-            success: false,
-            error: error.message,
-            generatedBy: 'Error'
-        };
+        console.error('OpenAI full report error:', error.message);
+        return { success: false, error: error.message, generatedBy: 'Error' };
     }
 }
 
+// ── Clinical Summary ──────────────────────────────────────────────────────────
+
 /**
- * Generate clinical summary from ML analysis results using Gemini
+ * Generate a short clinical summary from ML analysis results.
  */
 export async function generateClinicalSummary(mlResults, patientInfo = {}) {
-    const ai = getGenAI();
-    if (!ai) {
-        console.warn('⚠️ GEMINI_API_KEY not set, using fallback summary');
+    if (!getClient()) {
         return generateFallbackSummary(mlResults);
     }
 
+    const modality = resolveModality(mlResults.sampleType);
+    const isPneumonia = modality === 'pneumonia';
+
     try {
-        console.log('🤖 Calling Gemini API for clinical summary...');
-        const model = ai.getGenerativeModel({ model: 'gemini-2.5-flash' });
+        console.log('🤖 Calling OpenAI GPT-4o-mini for clinical summary...');
 
-        const prompt = `You are a medical AI assistant generating clinical summaries for pathology reports. 
+        const system = `You are a medical AI assistant writing concise clinical summaries for radiology reports. 
+Use professional medical language appropriate for physicians.`;
 
-AI ANALYSIS DATA:
-- Sample Type: ${mlResults.sampleType || 'Brain MRI'}
-- Images Analyzed: ${mlResults.totalImages || 0}
-- Malignant Detections: ${mlResults.malignantDetections || 0}
-- Detection Probability: ${((mlResults.tumorProbability || 0)).toFixed(1)}%
-- AI Confidence: ${((mlResults.averageConfidence || 0) * 100).toFixed(1)}%
-- Risk Assessment: ${mlResults.overallRisk || 'Unknown'}
+        const user = `Write a 2-3 sentence clinical summary for this imaging study.
 
-PATIENT CONTEXT:
-- Age: ${patientInfo.age || 'Unknown'}
-- Gender: ${patientInfo.gender || 'Unknown'}
+Imaging Type: ${modalityLabel(modality)}
+Images Analyzed: ${mlResults.totalImages || 0}
+Finding: ${mlResults.isPositive ? (isPneumonia ? 'Pneumonia Detected' : 'Tumor Detected') : 'Normal'}
+${isPneumonia ? 'Pneumonia' : 'Tumor'} Probability: ${(mlResults.tumorProbability || 0).toFixed(1)}%
+AI Confidence: ${((mlResults.averageConfidence || mlResults.confidence || 0) * (mlResults.averageConfidence > 1 ? 1 : 100)).toFixed(1)}%
+Risk Level: ${mlResults.overallRisk || mlResults.riskLevel || 'Unknown'}
+Patient Age: ${patientInfo.age || 'Unknown'}, Gender: ${patientInfo.gender || 'Unknown'}
 
-Generate a professional 2-3 sentence clinical summary suitable for a pathology report. Use medical terminology appropriate for physicians. Be factual, use phrases like "findings suggest" or "consistent with". Include confidence level and recommendations if abnormal.`;
+Use phrases like "findings are consistent with", "AI-assisted analysis suggests". 
+Include a recommendation if abnormal. Output plain text only (no JSON, no markdown).`;
 
-        const result = await model.generateContent(prompt);
-        const response = await result.response;
-        const summary = response.text().trim();
+        const summary = await callGPT(system, user);
 
         return {
             success: true,
-            summary: summary,
-            generatedBy: 'Gemini AI',
+            summary,
+            generatedBy: 'OpenAI GPT-4o-mini',
             timestamp: new Date().toISOString()
         };
     } catch (error) {
-        console.error('Gemini API error:', error);
+        console.error('OpenAI clinical summary error:', error.message);
         return generateFallbackSummary(mlResults);
     }
 }
 
+// ── Recommendations ───────────────────────────────────────────────────────────
+
 /**
- * Generate follow-up recommendations
+ * Generate 3 clinical follow-up recommendations.
  */
 export async function generateRecommendations(mlResults) {
-    const ai = getGenAI();
-    if (!ai) {
+    if (!getClient()) {
         return generateFallbackRecommendations(mlResults);
     }
 
+    const modality = resolveModality(mlResults.sampleType);
+    const isPneumonia = modality === 'pneumonia';
+
     try {
-        console.log('🤖 Calling Gemini API for recommendations...');
-        const model = ai.getGenerativeModel({ model: 'gemini-2.5-flash' });
+        console.log('🤖 Calling OpenAI GPT-4o-mini for recommendations...');
 
-        const prompt = `Based on these pathology AI analysis results, provide 3 brief clinical recommendations:
+        const system = `You are a clinical AI assistant providing evidence-based radiology follow-up recommendations.`;
 
-- Detection Result: ${mlResults.isPositive ? 'POSITIVE (Abnormal)' : 'NEGATIVE (Normal)'}
-- Confidence: ${mlResults.confidence?.toFixed(1) || 0}%
-- Risk Level: ${mlResults.riskLevel || 'Unknown'}
+        const user = `Based on these radiology AI results, provide exactly 3 concise clinical recommendations.
 
-Return ONLY a JSON array of 3 recommendation strings, nothing else. Example format:
+Imaging: ${modalityLabel(modality)}
+Finding: ${mlResults.isPositive ? (isPneumonia ? 'Pneumonia Detected' : 'Tumor Detected') : 'Normal'}
+Confidence: ${(mlResults.confidence || 0).toFixed(1)}%
+Risk: ${mlResults.riskLevel || 'Unknown'}
+
+Return ONLY a valid JSON array of 3 strings (no markdown, no explanation):
 ["Recommendation 1", "Recommendation 2", "Recommendation 3"]`;
 
-        const result = await model.generateContent(prompt);
-        const response = await result.response;
-        const text = response.text().trim();
+        const text = await callGPT(system, user);
 
         let recommendations;
         try {
-            recommendations = JSON.parse(text);
+            const arrMatch = text.match(/\[[\s\S]*\]/);
+            recommendations = JSON.parse(arrMatch ? arrMatch[0] : text);
         } catch {
-            recommendations = [
-                'Consult with pathologist for confirmation',
-                'Consider clinical correlation',
-                'Follow standard care protocols'
-            ];
+            recommendations = generateFallbackRecommendations(mlResults).recommendations;
         }
 
-        return {
-            success: true,
-            recommendations,
-            generatedBy: 'Gemini AI'
-        };
+        return { success: true, recommendations, generatedBy: 'OpenAI GPT-4o-mini' };
     } catch (error) {
-        console.error('Gemini recommendations error:', error);
+        console.error('OpenAI recommendations error:', error.message);
         return generateFallbackRecommendations(mlResults);
     }
 }
 
-// Fallback functions
+// ── Fallbacks ─────────────────────────────────────────────────────────────────
+
 function generateFallbackSummary(mlResults) {
     const isPositive = mlResults.isPositive || (mlResults.malignantDetections || 0) > 0;
-    // Confidence is already a percentage from routes, don't multiply again
-    const rawConfidence = mlResults.averageConfidence || mlResults.confidence || 0;
-    const confidence = (rawConfidence > 1 ? rawConfidence : rawConfidence * 100).toFixed(1);
-    const riskLevel = mlResults.overallRisk || mlResults.riskLevel || 'Unknown';
+    const rawConf = mlResults.averageConfidence || mlResults.confidence || 0;
+    const confidence = (rawConf > 1 ? rawConf : rawConf * 100).toFixed(1);
+    const risk = mlResults.overallRisk || mlResults.riskLevel || 'Unknown';
+    const modality = resolveModality(mlResults.sampleType);
+    const finding = modality === 'pneumonia'
+        ? (isPositive ? 'consolidative opacities consistent with pneumonia' : 'clear lung fields with no evidence of pneumonia')
+        : (isPositive ? 'intracranial mass lesion requiring further evaluation' : 'no evidence of intracranial neoplasm');
 
     const summary = isPositive
-        ? `AI-assisted analysis detected potential abnormalities in the submitted sample with ${confidence}% confidence. Risk assessment: ${riskLevel}. Further clinical evaluation and histopathological confirmation is recommended.`
-        : `AI-assisted analysis of the submitted sample shows no significant abnormalities. Detection confidence: ${confidence}%. Risk level: ${riskLevel}. Normal tissue architecture and cellular morphology observed.`;
+        ? `AI-assisted ${modalityLabel(modality)} analysis identifies ${finding} with ${confidence}% model confidence. Risk assessment: ${risk}. Clinical correlation and radiologist review are strongly recommended.`
+        : `AI-assisted ${modalityLabel(modality)} analysis demonstrates ${finding}. Model confidence: ${confidence}%. Risk level: ${risk}. Routine follow-up per clinical guidelines is advised.`;
 
-    return {
-        success: true,
-        summary,
-        generatedBy: 'Fallback (No API Key)',
-        timestamp: new Date().toISOString()
-    };
+    return { success: true, summary, generatedBy: 'Fallback', timestamp: new Date().toISOString() };
 }
 
 function generateFallbackRecommendations(mlResults) {
     const isPositive = mlResults.isPositive || (mlResults.malignantDetections || 0) > 0;
+    const modality = resolveModality(mlResults.sampleType);
+    const isPneumonia = modality === 'pneumonia';
 
     const recommendations = isPositive
-        ? [
-            'Recommend confirmatory biopsy with histopathological examination',
-            'Consider additional imaging studies if clinically indicated',
-            'Schedule follow-up consultation with specialist'
-        ]
-        : [
-            'No immediate follow-up required based on current findings',
-            'Continue routine screening as per clinical guidelines',
-            'Consult with ordering physician for clinical correlation'
-        ];
+        ? isPneumonia
+            ? [
+                'Initiate appropriate antibiotic therapy per local guidelines and clinical severity',
+                'Consider repeat chest X-ray in 4-6 weeks to confirm radiological clearance',
+                'Escalate to CT chest if clinical deterioration or atypical features are present'
+              ]
+            : [
+                'Urgent MRI brain with contrast for detailed lesion characterisation',
+                'Neurosurgery and neuro-oncology multidisciplinary team referral',
+                'Assess for raised intracranial pressure and initiate appropriate management'
+              ]
+        : isPneumonia
+            ? [
+                'No immediate antibiotic treatment required based on current imaging',
+                'Continue routine clinical assessment and symptom monitoring',
+                'Repeat imaging only if clinical symptoms persist or worsen'
+              ]
+            : [
+                'No immediate neurosurgical intervention required based on current imaging',
+                'Routine neurological follow-up as per clinical indication',
+                'Repeat MRI in 6-12 months if clinically indicated'
+              ];
 
-    return {
-        success: true,
-        recommendations,
-        generatedBy: 'Fallback'
-    };
+    return { success: true, recommendations, generatedBy: 'Fallback' };
 }

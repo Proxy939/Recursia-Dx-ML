@@ -19,7 +19,7 @@ export function SimpleHeatmapDisplay() {
     const heatmapData = knownHeatmaps.map((filename, index) => ({
       id: index + 1,
       name: `Heatmap ${index + 1}`,
-      src: `http://localhost:5000/uploads/heatmaps/${filename}`,
+      src: `${import.meta.env.VITE_SERVER_URL || 'http://localhost:5001'}/uploads/heatmaps/${filename}`,
       filename: filename
     }))
 

@@ -83,7 +83,8 @@ export function WSIViewer({ onNext, sample, onSampleUpdated }) {
       for (const file of files) {
         // Validate file type
         const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/tiff', 'image/bmp']
-        if (!validTypes.includes(file.type)) {
+        const ext = file.name.toLowerCase().split('.').pop()
+        if (!validTypes.includes(file.type) && ext !== 'dcm') {
           toast.error(`${file.name}: Invalid file type. Please upload images only.`)
           continue
         }
@@ -153,9 +154,9 @@ export function WSIViewer({ onNext, sample, onSampleUpdated }) {
       type: sample.sampleType?.toLowerCase() || 'unknown',
       resolution: img.magnification || 'Unknown',
       size: `${Math.floor(Math.random() * 2048)}x${Math.floor(Math.random() * 1536)}`, // Mock size for now
-      staining: img.staining || 'H&E',
-      thumbnail: `http://localhost:5000${img.url}`,
-      fullImage: `http://localhost:5000${img.url}`,
+      staining: img.staining || 'N/A',
+      thumbnail: `${import.meta.env.VITE_SERVER_URL || 'http://localhost:5001'}${img.url}`,
+      fullImage: `${import.meta.env.VITE_SERVER_URL || 'http://localhost:5001'}${img.url}`,
       analysis: img.mlAnalysis ? 'completed' : 'pending',
       mlAnalysis: img.mlAnalysis,
       uploadedAt: img.uploadedAt
@@ -305,7 +306,7 @@ export function WSIViewer({ onNext, sample, onSampleUpdated }) {
       }
       
       // Call backend ML analysis endpoint
-      const response = await fetch('http://localhost:5000/api/samples/upload-with-analysis', {
+      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5001/api'}/samples/upload-with-analysis`, {
         method: 'POST',
         body: formData
       })
@@ -394,7 +395,7 @@ export function WSIViewer({ onNext, sample, onSampleUpdated }) {
                   <input
                     ref={fileInputRef}
                     type="file"
-                    accept="image/jpeg,image/jpg,image/png,image/tiff,image/bmp"
+                    accept="image/jpeg,image/jpg,image/png,image/tiff,image/bmp,.dcm"
                     multiple
                     onChange={handleFileUpload}
                     className="hidden"
@@ -418,7 +419,7 @@ export function WSIViewer({ onNext, sample, onSampleUpdated }) {
                     )}
                   </Button>
                   <p className="text-xs text-muted-foreground mt-2">
-                    JPG, PNG, TIFF, BMP up to 50MB
+                    JPG, PNG, TIFF, BMP, DICOM (.dcm) up to 50MB
                   </p>
                 </div>
 
@@ -507,7 +508,7 @@ export function WSIViewer({ onNext, sample, onSampleUpdated }) {
                   </CardTitle>
                   {selectedImage && (
                     <CardDescription>
-                      Resolution: {selectedImage.resolution} • Staining: {selectedImage.staining}
+                      Resolution: {selectedImage.resolution} • Type: {selectedImage.type}
                     </CardDescription>
                   )}
                 </div>

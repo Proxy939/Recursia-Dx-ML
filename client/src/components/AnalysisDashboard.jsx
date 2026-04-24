@@ -85,28 +85,41 @@ export function AnalysisDashboard({ onNext, sample, analysisType = 'general' }) 
     // Calculate tumor percentage
     const tumorPercentage = mlAnalyses.length > 0 ? (tumorDetections.length / mlAnalyses.length) * 100 : 0
     
-    // Calculate average tumor probability from all analyses
-    // Model's confidence IS the tumor probability
+    // Calculate actual TUMOR probability from class probabilities
+    // The model returns 4 classes: glioma, meningioma, pituitary, notumor
+    // Tumor probability = sum of all tumor classes (everything except notumor)
     const avgTumorProbability = mlAnalyses.reduce((sum, analysis) => {
-      // Model's confidence is the tumor probability
-      let tumorProb = analysis.metadata?.probabilities?.tumor || analysis.confidence || 0
+      const probs = analysis.classProbabilities || analysis.metadata?.prediction?.probabilities || analysis.metadata?.probabilities || {}
       
-      // Convert to percentage if decimal
-      if (tumorProb <= 1) tumorProb = tumorProb * 100
+      // Try to get the notumor probability to calculate tumor prob as (100 - notumor)
+      let notumorProb = probs.notumor ?? probs.Notumor ?? probs['no tumor'] ?? probs['No Tumor'] ?? null
       
-      console.log('🔍 Tumor prob extraction:', {
-        confidence: analysis.confidence,
-        metadata_probs: analysis.metadata?.probabilities,
-        extracted: tumorProb
-      })
+      let tumorProb
+      if (notumorProb !== null) {
+        // Normalize to percentage
+        if (notumorProb <= 1) notumorProb = notumorProb * 100
+        tumorProb = 100 - notumorProb
+      } else {
+        // Fallback: if prediction is tumor class, use confidence; if notumor, use 0
+        const isTumor = analysis.prediction === 'malignant' || analysis.prediction === 'Tumor'
+        const conf = analysis.confidence || 0
+        tumorProb = isTumor ? (conf <= 1 ? conf * 100 : conf) : (1 - (conf <= 1 ? conf : conf / 100)) * 100
+      }
       
-      return sum + tumorProb
+      return sum + Math.max(0, Math.min(100, tumorProb))
     }, 0) / mlAnalyses.length
 
     // Get the highest tumor probability for critical assessment
     const maxTumorProbability = Math.max(...mlAnalyses.map(analysis => {
-      let prob = analysis.metadata?.probabilities?.tumor || analysis.confidence || 0
-      return prob <= 1 ? prob * 100 : prob
+      const probs = analysis.classProbabilities || analysis.metadata?.prediction?.probabilities || analysis.metadata?.probabilities || {}
+      let notumorProb = probs.notumor ?? probs.Notumor ?? probs['no tumor'] ?? probs['No Tumor'] ?? null
+      if (notumorProb !== null) {
+        if (notumorProb <= 1) notumorProb = notumorProb * 100
+        return 100 - notumorProb
+      }
+      const isTumor = analysis.prediction === 'malignant' || analysis.prediction === 'Tumor'
+      const conf = analysis.confidence || 0
+      return isTumor ? (conf <= 1 ? conf * 100 : conf) : 0
     }))
 
     return {
@@ -154,9 +167,12 @@ export function AnalysisDashboard({ onNext, sample, analysisType = 'general' }) 
 
     // Aggregate pneumonia analysis results
     const pneumoniaDetections = mlAnalyses.filter(a => 
+      a.isPneumonia === true ||
       a.prediction === 'Pneumonia' || 
       a.prediction === 'pneumonia' ||
-      a.metadata?.prediction?.class === 'Pneumonia'
+      a.prediction === 'malignant' ||
+      a.metadata?.prediction?.class === 'Pneumonia' ||
+      a.metadata?.prediction?.predicted_class === 'Pneumonia'
     )
     const avgConfidence = mlAnalyses.reduce((sum, a) => sum + (a.confidence || 0), 0) / mlAnalyses.length
 
@@ -723,16 +739,19 @@ export function AnalysisDashboard({ onNext, sample, analysisType = 'general' }) 
                 <div className="space-y-2">
                   <h4 className="font-semibold text-sm">Per-Image Tumor Probabilities</h4>
                   {realTimeData.analyses.map((analysis, index) => {
-                    // Try multiple possible locations for tumor probability
-                    let rawProb = 
-                      analysis.metadata?.probabilities?.tumor ||
-                      analysis.metadata?.probabilities?.Tumor ||
-                      analysis.probabilities?.tumor ||
-                      (analysis.metadata?.is_tumor ? analysis.metadata?.confidence || analysis.confidence : null) ||
-                      (analysis.prediction === 'malignant' || analysis.prediction === 'Tumor' ? analysis.confidence : null) ||
-                      0
-                    // Convert to percentage if it's a decimal
-                    const tumorProb = rawProb > 1 ? rawProb : rawProb * 100
+                    // Calculate tumor prob from class probabilities (100 - notumor%)
+                    const probs = analysis.classProbabilities || analysis.metadata?.prediction?.probabilities || analysis.metadata?.probabilities || {}
+                    let notumorProb = probs.notumor ?? probs.Notumor ?? probs['no tumor'] ?? probs['No Tumor'] ?? null
+                    let tumorProb
+                    if (notumorProb !== null) {
+                      if (notumorProb <= 1) notumorProb = notumorProb * 100
+                      tumorProb = 100 - notumorProb
+                    } else {
+                      const isTumor = analysis.prediction === 'malignant' || analysis.prediction === 'Tumor'
+                      const conf = analysis.confidence || 0
+                      tumorProb = isTumor ? (conf <= 1 ? conf * 100 : conf) : 0
+                    }
+                    tumorProb = Math.max(0, Math.min(100, tumorProb))
                     return (
                     <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded">
                       <span className="text-sm font-medium">Image {index + 1}</span>
@@ -1048,7 +1067,7 @@ export function AnalysisDashboard({ onNext, sample, analysisType = 'general' }) 
             <CardHeader>
               <CardTitle>Brain Tumor Analysis</CardTitle>
               <CardDescription>
-                AI-powered cancer detection and morphological analysis
+                AI-powered brain tumor detection and classification
               </CardDescription>
             </CardHeader>
             <CardContent>

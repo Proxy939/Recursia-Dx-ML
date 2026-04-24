@@ -11,6 +11,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import multer from 'multer';
 import fs from 'fs';
+import { execSync } from 'child_process';
 
 // Import routes AFTER dotenv.config() so API keys are available
 import authRoutes from './routes/auth.js';
@@ -190,6 +191,42 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // Request logging middleware
 app.use(requestLogger);
 
+// DICOM-to-PNG middleware: intercept .dcm file requests, convert to PNG on-the-fly
+
+app.use('/uploads', (req, res, next) => {
+  // Only intercept .dcm file requests
+  if (!req.path.toLowerCase().endsWith('.dcm')) {
+    return next();
+  }
+
+  const dcmPath = path.join(__dirname, 'uploads', req.path);
+  const pngPath = dcmPath.replace(/\.dcm$/i, '.png');
+
+  // Check if PNG already exists (cached conversion)
+  if (fs.existsSync(pngPath)) {
+    return res.sendFile(pngPath);
+  }
+
+  // Check if DCM file exists
+  if (!fs.existsSync(dcmPath)) {
+    return res.status(404).json({ error: 'File not found' });
+  }
+
+  // Convert DICOM to PNG using standalone Python script
+  try {
+    const dcm2pngScript = path.join(process.cwd(), 'ml', 'utils', 'dcm2png.py');
+    execSync(`python "${dcm2pngScript}" "${dcmPath}" "${pngPath}"`, {
+      timeout: 30000,
+      stdio: 'pipe'
+    });
+    console.log(`📸 On-the-fly DICOM → PNG: ${path.basename(pngPath)}`);
+    return res.sendFile(pngPath);
+  } catch (err) {
+    console.error(`⚠️ DICOM conversion failed: ${err.message}`);
+    return res.status(500).json({ error: 'Failed to convert DICOM to PNG' });
+  }
+});
+
 // Static files for uploads
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
@@ -217,11 +254,16 @@ const upload = multer({
     fileSize: 50 * 1024 * 1024 // 50MB limit
   },
   fileFilter: (req, file, cb) => {
+    // Allow DICOM files by extension (browsers send them as application/octet-stream)
+    const ext = file.originalname.toLowerCase().split('.').pop();
+    if (ext === 'dcm') {
+      return cb(null, true);
+    }
     const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/tiff', 'image/bmp'];
     if (allowedTypes.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error('Invalid file type. Only JPEG, PNG, TIFF, and BMP files are allowed.'));
+      cb(new Error('Invalid file type. Only JPEG, PNG, TIFF, BMP, and DICOM (.dcm) files are allowed.'));
     }
   }
 });

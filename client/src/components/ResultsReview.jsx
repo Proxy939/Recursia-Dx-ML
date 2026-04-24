@@ -43,7 +43,7 @@ export function ResultsReview({ onNext, sample }) {
       // Pneumonia analysis — uses different data structure
       const confidence = analysis.confidence || 0
       const confidencePct = confidence <= 1 ? confidence * 100 : confidence
-      const detected = analysis.isPneumonia || analysis.prediction === 'malignant'
+      const detected = analysis.isPneumonia || analysis.prediction === 'malignant' || analysis.prediction === 'Pneumonia'
 
       return {
         prediction: detected ? 'Pneumonia Detected' : 'Normal',
@@ -57,17 +57,33 @@ export function ResultsReview({ onNext, sample }) {
       }
     }
     
-    // Brain tumor analysis
-    let tumorProb = analysis.metadata?.probabilities?.tumor || analysis.confidence || 0
-    if (tumorProb <= 1) tumorProb = tumorProb * 100
+    // Brain tumor analysis - use class probabilities
+    const probs = analysis.classProbabilities || analysis.metadata?.prediction?.probabilities || analysis.metadata?.probabilities || {}
+    let notumorProb = probs.notumor ?? probs.Notumor ?? probs['no tumor'] ?? probs['No Tumor'] ?? null
+    let tumorProb
+    if (notumorProb !== null) {
+      if (notumorProb <= 1) notumorProb = notumorProb * 100
+      tumorProb = 100 - notumorProb
+    } else {
+      tumorProb = analysis.prediction === 'malignant' ? (analysis.confidence <= 1 ? analysis.confidence * 100 : analysis.confidence) : 0
+    }
     const isPositive = tumorProb >= 54
     const riskLevel = tumorProb >= 70 ? 'High' : tumorProb >= 50 ? 'Medium' : 'Low'
     
+    // Get detected tumor type
+    const tumorType = analysis.tumorType || analysis.metadata?.prediction?.predicted_class || null
+    const predictedClass = tumorType?.toLowerCase()
+    const tumorLabel = predictedClass === 'glioma' ? 'Glioma Detected' :
+                       predictedClass === 'meningioma' ? 'Meningioma Detected' :
+                       predictedClass === 'pituitary' ? 'Pituitary Tumor Detected' :
+                       predictedClass === 'notumor' ? 'No Tumor Detected' :
+                       isPositive ? 'Tumor Detected' : 'No Tumor Detected'
+    
     return {
-      prediction: isPositive ? 'Malignant' : 'Benign',
+      prediction: tumorLabel,
       confidence: (analysis.confidence <= 1 ? analysis.confidence * 100 : analysis.confidence).toFixed(1),
       riskLevel,
-      probabilities: analysis.metadata?.probabilities || {},
+      probabilities: probs,
       tumorProbability: tumorProb / 100,
       isPositive,
       detectedFeatures: analysis.detected_features || analysis.metadata?.detected_features || []

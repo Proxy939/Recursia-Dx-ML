@@ -197,6 +197,45 @@ def health_check():
         'timestamp': time.time()
     })
 
+@app.route('/convert-dicom', methods=['POST'])
+def convert_dicom():
+    """Convert a DICOM (.dcm) file to PNG for browser preview."""
+    try:
+        if 'image' not in request.files:
+            return jsonify({'success': False, 'error': 'No image file provided'}), 400
+
+        file = request.files['image']
+        fname = file.filename or ''
+
+        if not fname.lower().endswith('.dcm'):
+            return jsonify({'success': False, 'error': 'File is not a DICOM file'}), 400
+
+        import pydicom
+        import cv2
+
+        ds = pydicom.dcmread(file)
+        arr = ds.pixel_array.astype(np.float32)
+        if arr.max() > 0:
+            arr = (arr / arr.max() * 255).astype(np.uint8)
+        else:
+            arr = arr.astype(np.uint8)
+
+        # Apply CLAHE for better visualization
+        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+        arr = clahe.apply(arr)
+
+        # Convert grayscale to RGB for PNG
+        pil_img = Image.fromarray(arr, mode='L').convert('RGB')
+        buf = io.BytesIO()
+        pil_img.save(buf, format='PNG')
+        buf.seek(0)
+
+        return send_file(buf, mimetype='image/png', download_name=fname.replace('.dcm', '.png'))
+
+    except Exception as e:
+        logger.error(f"DICOM conversion error: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @app.route('/predict', methods=['POST'])
 def predict_tumor():
     """Predict from uploaded image with routing based on imageType."""
@@ -796,7 +835,7 @@ if __name__ == '__main__':
         logger.info("=" * 70)
         
         # Run Flask app
-        port = int(os.getenv('ML_API_PORT', 5001))
+        port = int(os.getenv('ML_API_PORT', 5000))
         logger.info(f"🚀 Starting server on port {port}...")
         app.run(
             host='0.0.0.0',

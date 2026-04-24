@@ -27,13 +27,13 @@ export function HomePage({ onLogin, onSignup }) {
     {
       icon: Brain,
       title: "AI-Powered Analysis",
-      description: "Advanced machine learning algorithms for accurate pathology detection with 96%+ confidence rates.",
+      description: "EfficientNetB3 and DenseNet121 ensemble models for accurate brain tumor and pneumonia detection.",
       color: "text-blue-600"
     },
     {
       icon: Microscope,
-      title: "WSI Processing",
-      description: "Handle gigapixel Whole Slide Images with multi-scale attention and tiling technology.",
+      title: "Medical Image Processing",
+      description: "Process Brain MRI scans and Chest X-rays with multi-scale attention and advanced preprocessing.",
       color: "text-green-600"
     },
     {
@@ -51,13 +51,13 @@ export function HomePage({ onLogin, onSignup }) {
     {
       icon: Users,
       title: "Collaborative Review",
-      description: "Seamless technician verification and pathologist review workflow integration.",
+      description: "Seamless technician verification and radiologist review workflow integration.",
       color: "text-red-600"
     },
     {
       icon: Globe,
       title: "Cloud-Based Platform",
-      description: "Access your pathology lab from anywhere with our secure cloud infrastructure.",
+      description: "Access your diagnostic lab from anywhere with our secure cloud infrastructure.",
       color: "text-indigo-600"
     }
   ]
@@ -65,14 +65,14 @@ export function HomePage({ onLogin, onSignup }) {
   const testimonials = [
     {
       name: "Dr. Sarah Chen",
-      role: "Chief Pathologist, Metro Medical Center",
+      role: "Chief Radiologist, Metro Medical Center",
       content: "RecursiaDx has revolutionized our lab workflow. The AI accuracy is remarkable and saves us hours daily.",
       avatar: "SC"
     },
     {
       name: "Tech. Michael Rodriguez",
       role: "Senior Medical Technologist",
-      content: "The user interface is intuitive and the verification process is seamless. Best pathology platform I've used.",
+      content: "The user interface is intuitive and the verification process is seamless. Best diagnostic platform I've used.",
       avatar: "MR"
     },
     {
@@ -84,7 +84,7 @@ export function HomePage({ onLogin, onSignup }) {
   ]
 
   const stats = [
-    { number: "96.8%", label: "AI Accuracy Rate", sublabel: "Cancer Detection" },
+    { number: "96.8%", label: "AI Accuracy Rate", sublabel: "Tumor & Pneumonia" },
     { number: "2.3M+", label: "Samples Analyzed", sublabel: "Since Launch" },
     { number: "150+", label: "Medical Facilities", sublabel: "Trust RecursiaDx" },
     { number: "< 5min", label: "Average Processing", sublabel: "Time per Sample" }
@@ -104,7 +104,7 @@ export function HomePage({ onLogin, onSignup }) {
                 <div>
                   <h1 className="text-xl font-bold">RecursiaDx</h1>
                   <Badge variant="outline" className="text-xs">
-                    Digital Pathology Platform
+                    Medical Imaging Diagnostics
                   </Badge>
                 </div>
               </div>
@@ -143,19 +143,19 @@ export function HomePage({ onLogin, onSignup }) {
             <div>
               <Badge className="mb-4">
                 <Award className="h-4 w-4 mr-2" />
-                RecuriaDx - Digital Pathology Diagnostics
+                RecursiaDx - Medical Imaging Diagnostics
               </Badge>
               
               <h1 className="text-5xl lg:text-6xl font-bold text-gray-900 mb-6">
-                Revolutionary
-                <span className="text-primary block">Digital Pathology</span>
-                Platform
+                AI-Powered
+                <span className="text-primary block">Medical Imaging</span>
+                Diagnostics
               </h1>
               
               <p className="text-xl text-gray-600 mb-8 leading-relaxed">
-                Transform your pathology lab with AI-powered analysis, automated workflows, 
-                and professional reporting. Detect brain tumors and pneumonia with 
-                unprecedented speed and accuracy.
+                Detect brain tumors from MRI scans and pneumonia from chest X-rays with 
+                AI-powered analysis, automated workflows, and professional diagnostic 
+                reporting — all with unprecedented speed and accuracy.
               </p>
               
               <div className="flex flex-col sm:flex-row gap-4">
@@ -272,11 +272,11 @@ export function HomePage({ onLogin, onSignup }) {
             <Badge className="mb-4">Core Features</Badge>
             <h2 className="text-4xl lg:text-5xl font-bold text-gray-900 mb-6">
               Everything you need for
-              <span className="text-primary block">modern pathology</span>
+              <span className="text-primary block">modern diagnostics</span>
             </h2>
             <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-              From AI-powered analysis to professional reporting, RecursiaDx provides 
-              a complete digital pathology solution for modern healthcare facilities.
+              From AI-powered image analysis to professional diagnostic reporting, RecursiaDx provides 
+              a complete medical imaging diagnostics solution for modern healthcare facilities.
             </p>
           </div>
           
@@ -350,13 +350,13 @@ export function HomePage({ onLogin, onSignup }) {
                 <div>
                   <h3 className="text-xl font-bold">RecursiaDx</h3>
                   <Badge variant="outline" className="text-xs border-gray-600 text-gray-300">
-                    Digital Pathology Platform
+                    Medical Imaging Diagnostics
                   </Badge>
                 </div>
               </div>
               <p className="text-gray-400 mb-4 max-w-md">
-                Revolutionizing pathology with AI-powered analysis and automated workflows 
-                for modern healthcare facilities worldwide.
+                Revolutionizing medical imaging diagnostics with AI-powered analysis and automated 
+                workflows for modern healthcare facilities worldwide.
               </p>
               <div className="flex items-center gap-4 text-sm text-gray-400">
                 <span>© 2024 RecursiaDx. All rights reserved.</span>

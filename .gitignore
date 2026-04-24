@@ -79,3 +79,37 @@ ml/*.db
 *.ipynb
 
 # Ignore old broken LFS pointers
+
+# ── Datasets & Archives (large training data — never commit) ──────────────────
+# Brain tumor dataset
+ml/data/
+ml/brain_tumor/
+ml/brain_tumor_dataset/
+ml/archive/
+ml/dataset/
+ml/datasets/
+
+# Pneumonia dataset
+ml/pneumonia_detection/pneumonia_detection/kaggle/
+ml/pneumonia_detection/pneumonia_detection/data/
+ml/pneumonia_detection/pneumonia_detection/archive/
+ml/pneumonia_detection/pneumonia_detection/chest_xray/
+
+# Any archive/compressed files
+*.zip
+*.tar
+*.tar.gz
+*.gz
+*.rar
+*.7z
+
+# Large image dataset folders (common split names)
+**/chest_xray/
+**/NORMAL/
+**/PNEUMONIA/
+**/Training/
+**/Testing/
+**/Validation/
+**/train/
+**/test/
+**/val/

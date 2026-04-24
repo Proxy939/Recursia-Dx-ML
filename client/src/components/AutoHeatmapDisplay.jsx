@@ -59,7 +59,7 @@ export function AutoHeatmapDisplay({ sample, className = "" }) {
     const allImages = sample?.images || []
     const potentialHeatmaps = allImages.map((img, index) => {
       // Generate potential heatmap path based on the image filename
-      const baseUrl = 'http://localhost:5000'
+      const baseUrl = (import.meta.env.VITE_SERVER_URL || 'http://localhost:5001')
       const heatmapPath = `/uploads/heatmaps/auto_heatmap_${img.filename}_${Date.now()}.png`
       
       return {
@@ -106,7 +106,7 @@ export function AutoHeatmapDisplay({ sample, className = "" }) {
                         {/* Try to load heatmap from common paths */}
                         <div className="space-y-2">
                           <img
-                            src={`http://localhost:5000/uploads/heatmaps/auto_heatmap_${img.filename}_*.png`}
+                            src={`${import.meta.env.VITE_SERVER_URL || 'http://localhost:5001'}/uploads/heatmaps/auto_heatmap_${img.filename}_*.png`}
                             alt={`Potential heatmap for ${img.originalName}`}
                             className="w-full h-32 object-cover rounded border"
                             onError={(e) => {

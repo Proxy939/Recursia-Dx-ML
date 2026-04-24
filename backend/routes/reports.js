@@ -332,7 +332,7 @@ router.post('/generate-summary/:sampleId',
   catchAsync(async (req, res) => {
     const { sampleId } = req.params;
 
-    console.log('🤖 Generating Gemini clinical summary for sample:', sampleId);
+    console.log('🤖 Generating AI clinical summary for sample:', sampleId);
 
     const sample = await Sample.findById(sampleId);
     if (!sample) {
@@ -349,7 +349,7 @@ router.post('/generate-summary/:sampleId',
       averageConfidence: 0,
       overallRisk: 'Unknown',
       tumorProbability: null,
-      sampleType: sample.sampleType || 'Brain MRI'
+      sampleType: sample.sampleType || sample.imageType || 'Brain MRI'
     };
 
     if (sample.images?.length > 0) {
@@ -358,7 +358,10 @@ router.post('/generate-summary/:sampleId',
 
       sample.images.forEach(img => {
         if (img.mlAnalysis) {
-          if (img.mlAnalysis.is_tumor || img.mlAnalysis.metadata?.is_tumor || img.mlAnalysis.prediction === 'malignant') {
+          if (img.mlAnalysis.isPneumonia || img.mlAnalysis.is_tumor ||
+              img.mlAnalysis.metadata?.is_tumor ||
+              img.mlAnalysis.prediction === 'malignant' ||
+              img.mlAnalysis.prediction === 'Pneumonia') {
             mlResults.malignantDetections++;
           }
           totalConfidence += img.mlAnalysis.confidence || 0;
@@ -421,7 +424,7 @@ router.post('/generate-full/:sampleId',
   catchAsync(async (req, res) => {
     const { sampleId } = req.params;
 
-    console.log('🤖 Generating FULL Gemini report for sample:', sampleId);
+    console.log('🤖 Generating FULL AI report for sample:', sampleId);
 
     const sample = await Sample.findById(sampleId);
     if (!sample) {
@@ -438,7 +441,7 @@ router.post('/generate-full/:sampleId',
       tumorProbability: 0,
       confidence: 0,
       riskLevel: 'Low',
-      sampleType: sample.sampleType || 'Brain MRI'
+      sampleType: sample.sampleType || sample.imageType || 'Brain MRI'
     };
 
     if (sample.images?.length > 0) {

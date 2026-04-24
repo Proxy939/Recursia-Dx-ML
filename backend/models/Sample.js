@@ -31,7 +31,7 @@ const sampleSchema = new mongoose.Schema({
     },
     dateOfBirth: Date,
     contactNumber: String,
-    address: String,
+    referringPhysician: String,
     medicalHistory: [String],
     currentMedications: [String],
     allergies: [String]
@@ -39,8 +39,8 @@ const sampleSchema = new mongoose.Schema({
   sampleType: {
     type: String,
     enum: {
-      values: ['Brain MRI', 'Chest X-ray', 'Tissue Biopsy', 'Blood Smear', 'Bone Marrow', 'Cytology', 'Fine Needle Aspirate', 'Other'],
-      message: 'Sample type must be one of: Brain MRI, Chest X-ray, Tissue Biopsy, Blood Smear, Bone Marrow, Cytology, Fine Needle Aspirate, Other'
+      values: ['Brain MRI', 'Chest X-ray', 'Other'],
+      message: 'Sample type must be one of: Brain MRI, Chest X-ray, Other'
     },
     required: [true, 'Sample type is required']
   },
@@ -64,6 +64,7 @@ const sampleSchema = new mongoose.Schema({
     clinicalDiagnosis: String,
     symptoms: [String],
     duration: String,
+    medicalHistory: String,
     urgency: {
       type: String,
       enum: ['Routine', 'Urgent', 'STAT'],
@@ -78,7 +79,7 @@ const sampleSchema = new mongoose.Schema({
   collectionInfo: {
     collectionDate: {
       type: Date,
-      required: [true, 'Collection date is required']
+      default: Date.now
     },
     collectionTime: String,
     collectedBy: {

@@ -23,7 +23,7 @@ def load_image(file_obj) -> np.ndarray:
     Load an uploaded image (PNG/JPG or DICOM).
     Returns uint8 grayscale numpy array at IMAGE_SIZE x IMAGE_SIZE.
     """
-    fname = getattr(file_obj, "name", "")
+    fname = getattr(file_obj, "filename", "") or getattr(file_obj, "name", "")
     if fname.lower().endswith(".dcm"):
         ds = pydicom.dcmread(file_obj)
         arr = ds.pixel_array.astype(np.float32)

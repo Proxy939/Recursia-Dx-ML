@@ -105,7 +105,7 @@ export function DashboardSidebar({ activeTab, onTabChange, user, onLogout }) {
               </div>
               <div>
                 <h3 className="font-semibold text-foreground">RecursiaDx</h3>
-                <p className="text-xs text-muted-foreground">Digital Pathology Platform</p>
+                <p className="text-xs text-muted-foreground">Medical Imaging Diagnostics</p>
               </div>
             </motion.div>
           </div>
@@ -255,7 +255,7 @@ export function DashboardSidebar({ activeTab, onTabChange, user, onLogout }) {
               className="flex items-center space-x-3 p-3 rounded-lg bg-accent/50"
             >
               <Avatar className="h-8 w-8">
-                <AvatarImage src={user?.avatar ? `http://localhost:5000${user.avatar}` : undefined} />
+                <AvatarImage src={user?.avatar ? `${import.meta.env.VITE_SERVER_URL || 'http://localhost:5001'}${user.avatar}` : undefined} />
                 <AvatarFallback className="text-xs">
                   {user?.name ? user.name.split(' ').map(n => n[0]).join('').toUpperCase() : 'U'}
                 </AvatarFallback>
@@ -343,7 +343,7 @@ export function DashboardSidebar({ activeTab, onTabChange, user, onLogout }) {
               className="flex justify-center"
             >
               <Avatar className="h-10 w-10">
-                <AvatarImage src={user?.avatar ? `http://localhost:5000${user.avatar}` : undefined} />
+                <AvatarImage src={user?.avatar ? `${import.meta.env.VITE_SERVER_URL || 'http://localhost:5001'}${user.avatar}` : undefined} />
                 <AvatarFallback className="text-xs">
                   {user?.name ? user.name.split(' ').map(n => n[0]).join('').toUpperCase() : 'U'}
                 </AvatarFallback>
