@@ -1,5 +1,5 @@
 // API configuration and utility functions
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 // Cookie expiry time (1 hour in seconds)
 const COOKIE_EXPIRY_SECONDS = 60 * 60; // 1 hour
@@ -32,7 +32,20 @@ const cookieUtils = {
 
 // API response handler
 const handleApiResponse = async (response) => {
-  const data = await response.json();
+  // Safely parse JSON — backend might return HTML on crash/404
+  let data;
+  const contentType = response.headers.get('content-type') || '';
+  if (contentType.includes('application/json')) {
+    data = await response.json();
+  } else {
+    // Not JSON — backend is likely down or returned an HTML error page
+    const text = await response.text();
+    throw {
+      status: response.status,
+      message: `Server error (${response.status}): Backend returned non-JSON response. Is the backend running on port 5000?`,
+      raw: text.slice(0, 200)
+    };
+  }
 
   if (!response.ok) {
     throw {
