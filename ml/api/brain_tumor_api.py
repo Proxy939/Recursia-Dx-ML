@@ -52,21 +52,37 @@ def load_model():
         model = tf.keras.models.load_model(MODEL_PATH)
         logger.info(f"Model loaded | input={model.input_shape} | output={model.output_shape}")
 
-        # ── Find last convolutional layer for Grad-CAM ─────────────────
+        # ── Find best Grad-CAM target layer ────────────────────────────
+        # We want the last Conv/BatchNorm layer with a 4-D spatial output
+        # before global average pooling. Skip pooling, dropout, reshape layers.
+        SKIP_KEYWORDS = ('global', 'pool', 'dropout', 'flatten', 'reshape',
+                         'padding', 'input', 'lambda')
         target_layer = None
         for layer in reversed(model.layers):
-            if len(layer.output_shape) == 4 and 'dropout' not in layer.name.lower():
-                target_layer = layer
-                break
+            name_lower = layer.name.lower()
+            if any(kw in name_lower for kw in SKIP_KEYWORDS):
+                continue
+            try:
+                out_shape = layer.output_shape
+                # Need 4-D: (batch, H, W, C) — H and W must be > 1
+                if (isinstance(out_shape, (list, tuple)) and
+                        len(out_shape) == 4 and
+                        out_shape[1] is not None and out_shape[1] > 1 and
+                        out_shape[2] is not None and out_shape[2] > 1):
+                    target_layer = layer
+                    break
+            except Exception:
+                continue
 
         if target_layer:
             grad_model = tf.keras.models.Model(
                 inputs=model.inputs,
                 outputs=[target_layer.output, model.output]
             )
-            logger.info(f"Grad-CAM target layer: {target_layer.name}")
+            logger.info(f"✅ Grad-CAM target layer: '{target_layer.name}' "
+                        f"| output shape: {target_layer.output_shape}")
         else:
-            logger.warning("No suitable Grad-CAM layer found — heatmaps disabled")
+            logger.warning("⚠️  No suitable Grad-CAM layer found — heatmaps disabled")
             grad_model = None
 
         return True
@@ -94,54 +110,102 @@ def preprocess_image(pil_image):
 
 def generate_gradcam(img_array, class_idx):
     """
-    Compute Grad-CAM using TensorFlow GradientTape on the last conv block.
+    Compute Grad-CAM using TensorFlow GradientTape.
+    Explicitly watches the intermediate conv-layer output (not just the input).
     Returns float32 ndarray [0,1] of shape (IMG_SIZE, IMG_SIZE), or None.
     """
     import tensorflow as tf
-    import cv2
 
     if grad_model is None:
+        logger.warning("Grad-CAM skipped: grad_model is None")
         return None
 
     try:
         img_tensor = tf.cast(img_array, tf.float32)
 
+        # ── KEY FIX: watch the intermediate layer output, not just the input ──
         with tf.GradientTape() as tape:
-            conv_outputs, predictions = grad_model(img_tensor)
+            # Run forward pass; grad_model returns [conv_output, final_predictions]
+            conv_outputs, predictions = grad_model(img_tensor, training=False)
+            # Tell tape to track the intermediate conv tensor explicitly
             tape.watch(conv_outputs)
             loss = predictions[:, class_idx]
 
-        grads = tape.gradient(loss, conv_outputs)        # (1, H, W, C)
-        pooled = tf.reduce_mean(grads, axis=(0, 1, 2))   # (C,)
+        # Gradient of class score w.r.t. feature maps
+        grads = tape.gradient(loss, conv_outputs)  # (1, H, W, C)
 
-        cam = conv_outputs[0] @ pooled[..., tf.newaxis]  # (H, W, 1)
-        cam = tf.squeeze(cam).numpy()
-        cam = np.maximum(cam, 0)                         # ReLU
+        if grads is None:
+            logger.warning("Grad-CAM: tape.gradient returned None — "
+                           "ensure the model was NOT built with @tf.function tracing issues")
+            return None
 
-        if cam.max() > 0:
+        # Global average pool over spatial dims → importance weights (C,)
+        pooled_grads = tf.reduce_mean(grads, axis=(0, 1, 2))
+
+        # Weight feature maps by their importance
+        conv_out_np   = conv_outputs[0].numpy()       # (H, W, C)
+        pooled_np     = pooled_grads.numpy()          # (C,)
+        cam = np.dot(conv_out_np, pooled_np)          # (H, W)
+
+        # ReLU + normalize
+        cam = np.maximum(cam, 0)
+        if cam.max() > 1e-8:
             cam = cam / cam.max()
+        else:
+            logger.warning("Grad-CAM: activation map is all zeros — "
+                           "model may be predicting with near-zero gradient for this class")
+            return None
 
-        cam = cv2.resize(cam.astype(np.float32), (IMG_SIZE, IMG_SIZE),
-                         interpolation=cv2.INTER_LINEAR)
-        return cam
+        # Resize to model input resolution
+        try:
+            import cv2
+            cam = cv2.resize(cam.astype(np.float32), (IMG_SIZE, IMG_SIZE),
+                             interpolation=cv2.INTER_LINEAR)
+        except ImportError:
+            # Fallback: PIL-based resize
+            from PIL import Image as PILImage
+            cam_pil = PILImage.fromarray((cam * 255).astype(np.uint8)).resize(
+                (IMG_SIZE, IMG_SIZE), PILImage.BILINEAR)
+            cam = np.array(cam_pil).astype(np.float32) / 255.0
+
+        logger.info(f"Grad-CAM OK | cam min={cam.min():.4f} max={cam.max():.4f} "
+                    f"| active_px={int(np.mean(cam > 0.5) * 100)}%")
+        return cam.astype(np.float32)
 
     except Exception as e:
-        logger.warning(f"Grad-CAM error: {e}")
+        logger.error(f"Grad-CAM generation failed: {e}", exc_info=True)
         return None
 
 
 def overlay_heatmap(original_pil, cam, alpha=0.45):
     """Blend jet-colormap Grad-CAM over the original image. Returns base64 PNG."""
-    import cv2
-
-    orig_rgb = np.array(original_pil.resize((IMG_SIZE, IMG_SIZE)).convert('RGB'))
-    heat_u8  = (cam * 255).astype(np.uint8)
-    cmap_bgr = cv2.applyColorMap(heat_u8, cv2.COLORMAP_JET)
-    cmap_rgb = cv2.cvtColor(cmap_bgr, cv2.COLOR_BGR2RGB)
-    blended  = cv2.addWeighted(orig_rgb, 1 - alpha, cmap_rgb, alpha, 0)
+    try:
+        import cv2
+        orig_rgb = np.array(original_pil.resize((IMG_SIZE, IMG_SIZE)).convert('RGB'))
+        heat_u8  = (cam * 255).astype(np.uint8)
+        cmap_bgr = cv2.applyColorMap(heat_u8, cv2.COLORMAP_JET)
+        cmap_rgb = cv2.cvtColor(cmap_bgr, cv2.COLOR_BGR2RGB)
+        blended  = cv2.addWeighted(orig_rgb, 1 - alpha, cmap_rgb, alpha, 0)
+        result_img = Image.fromarray(blended)
+    except ImportError:
+        # Pure-PIL fallback colorizer (matplotlib jet approximation)
+        import colorsys
+        orig_rgb   = np.array(original_pil.resize((IMG_SIZE, IMG_SIZE)).convert('RGB'))
+        h, w       = cam.shape
+        cmap_rgb   = np.zeros((h, w, 3), dtype=np.uint8)
+        for y in range(h):
+            for x in range(w):
+                v = float(cam[y, x])
+                # Jet colormap approximation: blue→cyan→green→yellow→red
+                r = int(np.clip(1.5 - abs(4 * v - 3), 0, 1) * 255)
+                g = int(np.clip(1.5 - abs(4 * v - 2), 0, 1) * 255)
+                b = int(np.clip(1.5 - abs(4 * v - 1), 0, 1) * 255)
+                cmap_rgb[y, x] = [r, g, b]
+        blended = (orig_rgb * (1 - alpha) + cmap_rgb * alpha).astype(np.uint8)
+        result_img = Image.fromarray(blended)
 
     buf = io.BytesIO()
-    Image.fromarray(blended).save(buf, format='PNG')
+    result_img.save(buf, format='PNG')
     b64 = base64.b64encode(buf.getvalue()).decode('utf-8')
     return f"data:image/png;base64,{b64}"
 
