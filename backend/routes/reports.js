@@ -444,6 +444,21 @@ router.post('/generate-full/:sampleId',
       sampleType: sample.sampleType || sample.imageType || 'Brain MRI'
     };
 
+    // Collect all heatmaps from stored images
+    const storedHeatmaps = sample.images
+      ?.filter(img => img.heatmap?.base64)
+      .map((img, idx) => ({
+        index: idx + 1,
+        filename: img.filename,
+        base64: img.heatmap.base64, // already has data:image/png;base64, prefix
+        type: img.heatmap.type || 'gradcam'
+      })) || [];
+
+    if (storedHeatmaps.length > 0) {
+      console.log(`🌡️  Found ${storedHeatmaps.length} Grad-CAM heatmap(s) to include in report`);
+      mlResults.heatmaps = storedHeatmaps;
+    }
+
     if (sample.images?.length > 0) {
       const firstImage = sample.images[0];
       if (firstImage?.mlAnalysis) {
@@ -464,6 +479,10 @@ router.post('/generate-full/:sampleId',
         mlResults.confidence = confidencePercent;
         mlResults.isPositive = tumorProbPercent >= 54;
         mlResults.riskLevel = tumorProbPercent >= 70 ? 'High' : tumorProbPercent >= 50 ? 'Medium' : 'Low';
+
+        // Also grab per-image severity and affected area for pneumonia
+        if (firstImage.mlAnalysis.severity) mlResults.severity = firstImage.mlAnalysis.severity;
+        if (firstImage.mlAnalysis.affectedAreaPct) mlResults.affectedAreaPct = firstImage.mlAnalysis.affectedAreaPct;
       }
     }
 
@@ -534,7 +553,14 @@ router.post('/generate-full/:sampleId',
         mlResults,
         report: reportContent,
         clinicalSummary: summary,
-        recommendations: recommendations
+        recommendations: recommendations,
+        // Pass heatmaps back to frontend for display in report UI
+        heatmaps: storedHeatmaps.map(h => ({
+          index: h.index,
+          filename: h.filename,
+          base64: h.base64,
+          type: h.type
+        }))
       }
     });
   })
@@ -648,6 +674,41 @@ router.get('/download-pdf/:sampleId',
       const modelName = isPneumonia ? 'DenseNet121 + EfficientNet-B0 Ensemble' : 'EfficientNetB3';
 
       console.log('📊 PDF Data:', { isPneumonia, probValue, confidence, isPositive, riskLevel });
+
+      // Extract Grad-CAM heatmap from sample images (if any)
+      const heatmapImages = sample.images
+        ?.filter(img => img.heatmap?.base64)
+        .slice(0, 3) // include up to 3 heatmaps
+        .map((img, idx) => ({ idx: idx + 1, base64: img.heatmap.base64, filename: img.filename })) || [];
+
+      const heatmapHtml = heatmapImages.length > 0 ? `
+        <div class="section">
+          <div class="section-title">🌡️ Grad-CAM Heatmap Analysis (AI Attention Map)</div>
+          <p style="font-size:12px;color:#6b7280;margin-bottom:15px;">
+            Grad-CAM (Gradient-weighted Class Activation Mapping) highlights the regions in the imaging study
+            that the AI model focused on most when making its prediction.
+            <strong>Red/warm areas</strong> indicate regions of highest model attention.
+          </p>
+          <div style="display:flex;flex-wrap:wrap;gap:15px;">
+            ${heatmapImages.map(h => `
+              <div style="text-align:center;">
+                <img src="${h.base64}" alt="Grad-CAM Heatmap ${h.idx}"
+                     style="width:200px;height:200px;object-fit:contain;border:2px solid #1e40af;border-radius:6px;" />
+                <p style="font-size:11px;color:#6b7280;margin-top:5px;">Image ${h.idx} — ${h.filename}</p>
+              </div>
+            `).join('')}
+          </div>
+          <div style="margin-top:15px;padding:10px;background:#eff6ff;border-left:4px solid #2563eb;border-radius:4px;font-size:12px;">
+            <strong>Interpretation:</strong> The highlighted regions correspond to areas the model weighted heavily for its 
+            ${isPneumonia ? 'pneumonia' : 'tumor'} classification decision.
+            ${isPositive
+              ? isPneumonia
+                ? 'Warm (red/orange) regions in lung fields suggest pulmonary opacification consistent with the AI pneumonia detection.'
+                : 'Warm regions indicate suspected tumor-like features that elevated the model confidence score.'
+              : 'Warm regions are minimal and distributed, consistent with a normal AI prediction.'
+            }
+          </div>
+        </div>` : '';
 
       // Generate report HTML
       const html = `
@@ -854,6 +915,8 @@ router.get('/download-pdf/:sampleId',
       </div>
     </div>
   </div>
+
+  ${heatmapHtml}
 
   <div class="section">
     <div class="section-title">Clinical Recommendations</div>

@@ -66,6 +66,13 @@ export async function generateFullReport(sample, mlResults) {
         const system = `You are an expert radiologist AI assistant generating professional clinical imaging reports. 
 Write in a formal, precise medical style. Always state that AI analysis requires verification by a qualified radiologist.`;
 
+        // Build heatmap context string if available
+        const heatmapCount = mlResults.heatmaps?.length || 0;
+        const affectedArea = mlResults.affectedAreaPct ? `${mlResults.affectedAreaPct.toFixed(1)}%` : null;
+        const heatmapContext = heatmapCount > 0
+          ? `\nGRAD-CAM HEATMAP DATA:\n- Heatmap images available: ${heatmapCount}\n${affectedArea ? `- Affected area (from heatmap): ${affectedArea}\n` : ''}- Heatmap type: Gradient-weighted Class Activation Map (highlights model attention regions)`
+          : '';
+
         const user = `Generate a radiology report for the following imaging study.
 
 STUDY INFORMATION:
@@ -85,6 +92,7 @@ AI ANALYSIS RESULTS:
 - Model Confidence: ${(mlResults.confidence || 0).toFixed(1)}%
 - Risk Level: ${mlResults.riskLevel || 'Unknown'}
 ${isPneumonia ? `- Severity: ${mlResults.severity || 'Unknown'}` : `- Tumor Class: ${mlResults.tumorClass || 'Unknown'}`}
+${heatmapContext}
 
 Return ONLY valid JSON (no markdown fences) with this exact structure:
 {
@@ -92,6 +100,7 @@ Return ONLY valid JSON (no markdown fences) with this exact structure:
   "interpretation": "Detailed radiological interpretation of AI results (3-4 sentences, use imaging terminology)",
   "recommendations": ["recommendation 1", "recommendation 2", "recommendation 3"],
   "imagingFindings": "Description of key imaging characteristics observed",
+  "heatmapInterpretation": ${heatmapCount > 0 ? `"1-2 sentence interpretation of what the Grad-CAM attention map indicates about model focus regions"` : `"No heatmap data available"`},
   "conclusion": "Final radiological impression (1-2 sentences)"
 }`;
 
