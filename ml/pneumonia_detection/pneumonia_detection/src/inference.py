@@ -24,7 +24,8 @@ def load_image(file_obj) -> np.ndarray:
     Returns uint8 grayscale numpy array at IMAGE_SIZE x IMAGE_SIZE.
     """
     import io as _io
-    fname = getattr(file_obj, "filename", "") or getattr(file_obj, "name", "")
+    # Flask uses 'filename', Streamlit uses 'name'
+    fname = getattr(file_obj, "filename", getattr(file_obj, "name", ""))
     if fname.lower().endswith(".dcm"):
         # pydicom needs a seekable stream — wrap Flask FileStorage in BytesIO
         raw = file_obj.read() if hasattr(file_obj, 'read') else open(file_obj, 'rb').read()

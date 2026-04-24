@@ -85,10 +85,10 @@ export function SampleUpload({ onNext, onSampleCreated }) {
   const handleFileUpload = (event) => {
     const files = Array.from(event.target.files)
     
-    // Validate file types (no TIFF, no SVS/NDPI)
+    // Validate file types (no SVS/NDPI)
     const validFiles = files.filter(file => {
       const ext = file.name.toLowerCase().split('.').pop()
-      if (['tiff', 'tif', 'svs', 'ndpi'].includes(ext)) {
+      if (['svs', 'ndpi'].includes(ext)) {
         toast.error(`${file.name}: ${ext.toUpperCase()} format is not supported. Use JPEG, PNG, BMP, or DICOM (.dcm).`)
         return false
       }
@@ -114,6 +114,14 @@ export function SampleUpload({ onNext, onSampleCreated }) {
     })
     
     setUploadedFiles(prev => [...prev, ...newFiles])
+    
+    // Auto-detect analysis type from file extension
+    const hasDicom = newFiles.some(f => f.isDicom)
+    if (hasDicom && !patientData.imageType) {
+      setPatientData(prev => ({ ...prev, imageType: 'pneumonia' }))
+      toast.info('DICOM file detected — automatically selected Chest X-ray / Pneumonia analysis.')
+    }
+    
     toast.success(`${validFiles.length} file(s) added`)
   }
 
@@ -738,6 +746,11 @@ export function SampleUpload({ onNext, onSampleCreated }) {
               )}
             </CardContent>
             <CardFooter>
+              {uploadedFiles.length > 0 && !patientData.imageType && (
+                <p className="text-xs text-amber-600 font-medium pb-2 text-center">
+                  ⚠️ Please select an analysis type (Brain MRI or Chest X-ray) in the Patient Info tab before submitting.
+                </p>
+              )}
               <Button 
                 onClick={handleSubmit} 
                 className="w-full"
