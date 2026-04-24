@@ -344,9 +344,13 @@ export function AnalysisDashboard({ onNext, sample, analysisType = 'general' }) 
           <h1 className="text-3xl font-bold">AI Analysis Dashboard</h1>
           <p className="text-muted-foreground">
             Step 3: AI-powered pathology analysis and prediction
-            {(realTimeData?.patientInfo?.name || pneumoniaAnalysisData?.patientInfo?.name) && (
-              <span className="ml-2 text-primary">• Patient: {realTimeData?.patientInfo?.name || pneumoniaAnalysisData?.patientInfo?.name}</span>
-            )}
+            {(realTimeData?.patientInfo?.name || pneumoniaAnalysisData?.patientInfo?.name) && (() => {
+              const raw = realTimeData?.patientInfo?.name || pneumoniaAnalysisData?.patientInfo?.name
+              // Don't show IP addresses as patient names
+              const isIP = /^[\d.:a-fA-F]+$/.test(raw?.trim())
+              const display = isIP ? 'Anonymous Patient' : raw
+              return <span className="ml-2 text-primary">• Patient: {display}</span>
+            })()}
           </p>
         </div>
         <div className="flex items-center gap-2">

@@ -6,8 +6,14 @@ import { catchAsync, AppError } from '../middleware/errorHandler.js';
 import upload from '../middleware/upload.js';
 import MLService from '../services/mlService.js';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import { spawn } from 'child_process';
 import fs from 'fs';
+
+// ESM __dirname equivalent
+const __filename_routes = fileURLToPath(import.meta.url);
+const __dirname_routes = path.dirname(__filename_routes); // = backend/routes
+const PROJECT_ROOT = path.resolve(__dirname_routes, '..', '..'); // = project root
 
 const router = express.Router();
 
@@ -435,8 +441,18 @@ router.post('/upload-with-analysis',
             try {
               const { execSync } = await import('child_process');
               const pngFilename = file.filename.replace(/\.dcm$/i, '.png');
-              const pngPath = path.join(process.cwd(), 'uploads', pngFilename);
-              const dcm2pngScript = path.join(process.cwd(), 'ml', 'utils', 'dcm2png.py');
+              const uploadsDir = path.resolve(__dirname_routes, '..', 'uploads');
+              const pngPath = path.join(uploadsDir, pngFilename);
+              const dcm2pngScript = path.join(PROJECT_ROOT, 'ml', 'utils', 'dcm2png.py');
+              
+              console.log(`📸 Converting DICOM: ${file.filename}`);
+              console.log(`   Script: ${dcm2pngScript}`);
+              console.log(`   Input:  ${file.path}`);
+              console.log(`   Output: ${pngPath}`);
+              
+              if (!fs.existsSync(dcm2pngScript)) {
+                throw new Error(`dcm2png.py not found at ${dcm2pngScript}`);
+              }
               
               // Convert using standalone Python script (no ML proxy dependency)
               execSync(`python "${dcm2pngScript}" "${file.path}" "${pngPath}"`, {
@@ -446,10 +462,10 @@ router.post('/upload-with-analysis',
               
               displayFilename = pngFilename;
               displayUrl = `/uploads/${pngFilename}`;
-              console.log(`📸 Converted DICOM → PNG: ${pngFilename}`);
+              console.log(`✅ DICOM → PNG success: ${pngFilename}`);
             } catch (convertErr) {
-              console.warn(`⚠️ DICOM conversion error: ${convertErr.message}`);
-              // Fallback: still proceed with .dcm URL (won't display but analysis works)
+              console.error(`❌ DICOM conversion FAILED: ${convertErr.message}`);
+              // Fallback: the server.js middleware will convert on-the-fly when requested
             }
           }
 

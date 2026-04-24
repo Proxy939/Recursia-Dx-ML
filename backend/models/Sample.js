@@ -107,7 +107,7 @@ const sampleSchema = new mongoose.Schema({
     mlAnalysis: {
       prediction: {
         type: String,
-        enum: ['benign', 'malignant', 'indeterminate']
+        enum: ['benign', 'malignant', 'indeterminate', 'Pneumonia', 'Normal', 'Glioma', 'Meningioma', 'Pituitary', 'Tumor', 'No Tumor']
       },
       confidence: Number,
       riskAssessment: {
@@ -119,6 +119,12 @@ const sampleSchema = new mongoose.Schema({
       modelVersion: String,
       analyzedAt: { type: Date, default: Date.now },
       metadata: mongoose.Schema.Types.Mixed,
+      // Pneumonia-specific fields
+      isPneumonia: Boolean,
+      severity: String,
+      affectedAreaPct: Number,
+      confidenceTier: mongoose.Schema.Types.Mixed,
+      classProbabilities: mongoose.Schema.Types.Mixed,
       // Blood analysis specific fields
       bloodAnalysis: {
         malaria: {
@@ -140,7 +146,7 @@ const sampleSchema = new mongoose.Schema({
   aiAnalysis: {
     overallPrediction: {
       type: String,
-      enum: ['benign', 'malignant', 'indeterminate']
+      enum: ['benign', 'malignant', 'indeterminate', 'Pneumonia', 'Normal']
     },
     averageConfidence: Number,
     highRiskImages: Number,

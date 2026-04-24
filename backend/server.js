@@ -214,7 +214,7 @@ app.use('/uploads', (req, res, next) => {
 
   // Convert DICOM to PNG using standalone Python script
   try {
-    const dcm2pngScript = path.join(process.cwd(), 'ml', 'utils', 'dcm2png.py');
+    const dcm2pngScript = path.join(__dirname, '..', 'ml', 'utils', 'dcm2png.py');
     execSync(`python "${dcm2pngScript}" "${dcmPath}" "${pngPath}"`, {
       timeout: 30000,
       stdio: 'pipe'

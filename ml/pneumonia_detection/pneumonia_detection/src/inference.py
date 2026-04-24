@@ -23,9 +23,12 @@ def load_image(file_obj) -> np.ndarray:
     Load an uploaded image (PNG/JPG or DICOM).
     Returns uint8 grayscale numpy array at IMAGE_SIZE x IMAGE_SIZE.
     """
+    import io as _io
     fname = getattr(file_obj, "filename", "") or getattr(file_obj, "name", "")
     if fname.lower().endswith(".dcm"):
-        ds = pydicom.dcmread(file_obj)
+        # pydicom needs a seekable stream — wrap Flask FileStorage in BytesIO
+        raw = file_obj.read() if hasattr(file_obj, 'read') else open(file_obj, 'rb').read()
+        ds = pydicom.dcmread(_io.BytesIO(raw), force=True)
         arr = ds.pixel_array.astype(np.float32)
         if arr.max() > 0:
             arr = (arr / arr.max() * 255).astype(np.uint8)

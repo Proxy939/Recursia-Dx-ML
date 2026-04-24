@@ -1,63 +1,30 @@
-# RecursiaDx Setup Guide
+# RecursiaDx — Setup Guide
 
-Complete setup instructions for running the RecursiaDx platform locally.
+## Prerequisites (install on any new PC)
 
----
-
-## Prerequisites
-
-Before starting, ensure you have:
-- **Node.js 18+** ([Download](https://nodejs.org))
-- **Python 3.10+** ([Download](https://www.python.org))
-- **MongoDB** (local or Atlas account)
-- **Git** ([Download](https://git-scm.com))
+| Tool | Version | Download |
+|------|---------|----------|
+| Node.js | ≥ 18.0.0 | https://nodejs.org |
+| Python | ≥ 3.10 | https://python.org |
+| MongoDB | Community | https://mongodb.com/try/download/community |
+| Git | Latest | https://git-scm.com |
 
 ---
 
-## 1. Clone Repository
+## 1. Clone & Install
 
 ```bash
-git clone https://github.com/AyushX1602/Recursia-Dx-ML-.git
-cd RecursiaDx
+git clone <your-repo-url>
+cd Recursia-Dx-ML
 ```
 
----
-
-## 2. Backend Setup
-
+### Backend
 ```bash
 cd backend
 npm install
 ```
 
-### Configure Environment Variables
-Create `.env` file in `backend/` folder:
-
-```env
-# MongoDB Connection
-MONGODB_URI=mongodb://localhost:27017/recursiadx
-PORT=5001
-
-# ML Service URLs
-ML_SERVICE_URL=http://localhost:5000
-BRAIN_TUMOR_API_URL=http://localhost:5002
-
-# Gemini AI (Optional - for AI reports)
-GEMINI_API_KEY=your_gemini_api_key_here
-
-# CORS
-ALLOWED_ORIGINS=http://localhost:5173,http://localhost:3000
-```
-
-**Get Gemini API Key (Free):**
-1. Visit [Google AI Studio](https://aistudio.google.com/app/apikey)
-2. Click "Create API Key"
-3. Copy and paste into `.env` file
-
----
-
-## 3. Frontend Setup
-
+### Frontend
 ```bash
 cd ../client
 npm install
@@ -65,205 +32,157 @@ npm install
 
 ---
 
-## 4. ML Setup
+## 2. Environment Variables
 
-### Install Python Dependencies
-
+### Backend (`backend/.env`)
+Copy the example and fill in your keys:
 ```bash
-cd ../ml
-pip install -r requirements.txt
+cp backend/.env.example backend/.env
 ```
 
-### Train / Download Model Files
+Required values to set:
+```env
+PORT=5001
+MONGODB_URI=mongodb://localhost:27017/recursiadx
+JWT_SECRET=any-long-random-string
+ENCRYPTION_KEY=exactly-32-characters-here!!!!!
+ML_API_URL=http://localhost:5000
+OPENAI_API_KEY=sk-proj-your-openai-key-here
+```
 
-1. **Brain Tumor Model (EfficientNetB3)** - Train it:
-   ```bash
-   cd ml
-   python train_brain_tumor.py
-   ```
-   This downloads the dataset from Kaggle and trains the model automatically.
-   Output: `ml/models/weights/brain_tumor_efficientnetb3.h5`
-
-2. **Malaria Model** (~95MB)
-   - Place at: `ml/models/weights/malaria_inceptionv3.pth`
-
-3. **YOLOv11 Platelet Model** (~22MB)
-   - Place at: `ml/models/weights/platelet_yolov8.pt`
-
-**Contact the repository owner for pre-trained model files.**
+### Frontend (`client/.env`)
+Create `client/.env`:
+```env
+VITE_API_URL=http://localhost:5001/api
+VITE_SERVER_URL=http://localhost:5001
+```
 
 ---
 
-## 5. Start All Services
-
-### Option 1: Windows Batch Script (Easiest)
+## 3. Python ML Environment
 
 ```bash
-cd ../../  # Back to root
-.\start_all.bat
+cd ml
+python -m venv venv
+
+# Windows
+.\venv\Scripts\activate
+
+# Mac/Linux
+source venv/bin/activate
+
+pip install -r requirements.txt
 ```
 
-This will open 4 terminal windows:
-- Frontend (Port 5173)
-- Backend (Port 5001)
-- Brain Tumor API (Port 5002)
-- Blood ML API (Port 5000)
+> ⚠️ **PyTorch install**: If `pip install -r requirements.txt` fails for torch, install it separately first:
+> ```bash
+> pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+> ```
+> Then run `pip install -r requirements.txt` again.
 
-### Option 2: Manual Start (4 separate terminals)
+---
 
-**Terminal 1 - Frontend:**
+## 4. Model Weights
+
+The trained model files are **not in Git** (too large). You need:
+
+| File | Size | Location |
+|------|------|----------|
+| `brain_tumor_efficientnetb3.h5` | 72 MB | `ml/models/weights/` |
+| `densenet121_best.pth` | 29 MB | `ml/pneumonia_detection/pneumonia_detection/models/` |
+| `efficientnet_b0_best.pth` | 18 MB | `ml/pneumonia_detection/pneumonia_detection/models/` |
+
+**Get them from:** Share via Google Drive / USB from the original dev machine, or retrain using `ml/train_*.py` scripts.
+
+---
+
+## 5. MongoDB
+
+Make sure MongoDB is running locally:
+```bash
+# Windows (if installed as service)
+net start MongoDB
+
+# Or start manually
+mongod --dbpath C:\data\db
+```
+
+---
+
+## 6. Start Everything
+
+Open **4 terminals**:
+
+### Terminal 1 — ML Proxy (port 5000)
+```bash
+cd ml
+.\venv\Scripts\activate        # Windows
+python api/app.py --port 5000
+```
+
+### Terminal 2 — Brain Tumor API (port 5002)
+```bash
+cd ml
+.\venv\Scripts\activate
+python api/brain_tumor_api.py --port 5002
+```
+
+### Terminal 3 — Pneumonia API (port 5003)
+```bash
+cd ml
+.\venv\Scripts\activate
+python api/pneumonia_api.py --port 5003
+```
+
+### Terminal 4 — Backend (port 5001)
+```bash
+cd backend
+npm run dev
+```
+
+### Terminal 5 — Frontend (port 5173)
 ```bash
 cd client
 npm run dev
 ```
 
-**Terminal 2 - Backend:**
-```bash
-cd backend
-node server.js
+**Or use the PowerShell script** (Windows only):
+```powershell
+cd ml
+.\start_ml.ps1
 ```
 
-**Terminal 3 - Brain Tumor ML (EfficientNetB3):**
-```bash
-cd ml
-python api/brain_tumor_api.py --port 5002
-```
-
-**Terminal 4 - Blood ML (Malaria + Platelet):**
-```bash
-cd ml
-python api/app.py
-```
+Then open http://localhost:5173
 
 ---
 
-## 6. Access Application
+## 7. Quick Health Check
 
-Open your browser and navigate to:
+After starting everything, verify:
 ```
-http://localhost:5173
+http://localhost:5000/health  → ML Proxy
+http://localhost:5002/health  → Brain Tumor API
+http://localhost:5003/health  → Pneumonia API
+http://localhost:5001/api     → Backend
+http://localhost:5173         → Frontend
 ```
-
-**Default Demo Access:**
-- Use "Demo Mode" button on homepage
-- Or create an account
 
 ---
 
 ## Troubleshooting
 
-### MongoDB Connection Error
-```
-Error: ECONNREFUSED mongodb://localhost:27017
-```
-**Solution:** Start MongoDB service
-- Windows: `net start MongoDB`
-- Mac: `brew services start mongodb-community`
-- Or use [MongoDB Atlas](https://www.mongodb.com/cloud/atlas) (free tier)
-
-### Puppeteer Chrome Download Failed
-```
-Error: Failed to launch the browser process
-```
-**Solution:**
-```bash
-cd backend
-npx puppeteer install
-```
-
-### ML Model Not Found
-```
-Error: Model file not found at path...
-```
-**Solution:** Train the brain tumor model (`python train_brain_tumor.py`) or download model files (see Step 4).
-
-### Port Already in Use
-```
-Error: Port 5001 is already in use
-```
-**Solution:** Kill the process using that port
-```bash
-# Windows
-netstat -ano | findstr :5001
-taskkill /PID <PID> /F
-
-# Mac/Linux
-lsof -ti:5001 | xargs kill -9
-```
-
-### Gemini API Rate Limit
-```
-Error: 429 Too Many Requests
-```
-**Solution:** 
-- Wait 60 seconds and retry
-- Free tier has 5 requests/minute limit
-- System works with fallback summaries without Gemini
+| Error | Fix |
+|-------|-----|
+| `ML service not available` | Start all 3 Python APIs first |
+| `500 on upload` | Check ML services are running on correct ports |
+| `DICOM not displaying` | Python + pydicom must be installed; backend auto-converts |
+| `OpenAI report fails` | Set `OPENAI_API_KEY` in `backend/.env` |
+| `MongoDB connection error` | Start MongoDB service |
 
 ---
 
-## Features
+## ⚠️ Not Cross-Platform (Mac/Linux)
 
-- ✅ AI-powered brain tumor MRI classification (EfficientNetB3)
-- ✅ Malaria parasite detection (InceptionV3)
-- ✅ Automated platelet counting (YOLOv11)
-- ✅ Gemini AI-generated clinical reports
-- ✅ Professional PDF report download
-- ✅ 5-step clinical workflow
-- ✅ Demo mode for testing
-
----
-
-## Tech Stack
-
-| Layer | Technology |
-|-------|------------|
-| Frontend | React 18 + Vite + Tailwind CSS |
-| Backend | Node.js + Express + MongoDB |
-| ML | Python + TensorFlow (EfficientNetB3) + PyTorch (InceptionV3) + YOLO |
-| AI | Google Gemini 2.5 Flash |
-
----
-
-## Project Structure
-
-```
-RecursiaDx/
-├── backend/          # Node.js API server
-│   ├── models/      # MongoDB schemas
-│   ├── routes/      # API endpoints
-│   ├── services/    # Gemini integration
-│   └── server.js    # Entry point
-├── client/          # React frontend
-│   └── src/
-│       └── components/
-├── ml/              # ML services
-│   ├── api/
-│   │   ├── app.py              # Blood analysis (port 5000)
-│   │   └── brain_tumor_api.py  # Brain tumor analysis (port 5002)
-│   ├── models/weights/         # Model weight files
-│   └── train_brain_tumor.py    # Training script
-├── start_all.bat    # Windows startup script
-└── README.md
-```
-
----
-
-## Support
-
-For issues or questions:
-1. Check [README.md](README.md)
-2. Review [STARTUP_GUIDE.md](STARTUP_GUIDE.md)  
-3. Open a GitHub issue
-
----
-
-## License
-
-Educational and research purposes only.
-
----
-
-**Status**: ✅ Production Ready
-
-Enjoy using RecursiaDx! 🚀
+- `start_ml.ps1` is **Windows PowerShell only**
+- On Mac/Linux, start each Python service manually (same commands, use `source venv/bin/activate`)
+- All other code (Node.js, React) works cross-platform
