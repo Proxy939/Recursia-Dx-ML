@@ -14,7 +14,7 @@ class MLService {
       const response = await fetch(`${ML_API_URL}/predict`, {
         method: 'POST',
         body: formData,
-        timeout: 60000 // 60 second timeout (pneumonia ensemble takes longer)
+        signal: AbortSignal.timeout(60000) // 60 second timeout (pneumonia ensemble takes longer)
       });
 
       if (!response.ok) {
@@ -50,13 +50,18 @@ class MLService {
       formData.append('imageType', imageType);
 
       imagePaths.forEach(({ path, filename }) => {
-        formData.append('images', fs.createReadStream(path), filename);
+        const isDicom = filename.toLowerCase().endsWith('.dcm');
+        const contentType = isDicom ? 'application/dicom' : 'application/octet-stream';
+        formData.append('images', fs.createReadStream(path), {
+          filename: filename,
+          contentType: contentType
+        });
       });
 
       const response = await fetch(`${ML_API_URL}/batch_predict`, {
         method: 'POST',
         body: formData,
-        timeout: 60000 // 60 second timeout for batch
+        signal: AbortSignal.timeout(120000) // 120 second timeout for batch
       });
 
       if (!response.ok) {
@@ -94,7 +99,7 @@ class MLService {
   static async checkHealth() {
     try {
       const response = await fetch(`${ML_API_URL}/health`, {
-        timeout: 5000
+        signal: AbortSignal.timeout(5000) // 5 second timeout for health check
       });
 
       if (!response.ok) {

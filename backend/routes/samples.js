@@ -419,13 +419,26 @@ router.post('/upload-with-analysis',
         console.log(`📊 ML Results received:`, JSON.stringify(mlResults, null, 2));
 
         if (!mlResults.success) {
-          // If ML fails, don't provide mock data - fail the request
+          // Gateway itself failed (network error to ML gateway on 5001)
           return res.status(503).json({
             success: false,
-            message: 'ML analysis failed. Cannot proceed without real analysis.',
+            message: `ML Gateway unreachable on port 5001. Make sure it is running: python api/app.py --port 5001`,
             error: mlResults.error
           });
         }
+
+        // Check if ALL individual predictions failed (e.g., downstream API is down)
+        const allFailed = mlResults.predictions && mlResults.predictions.length > 0 &&
+                          mlResults.predictions.every(p => !p.success);
+        if (allFailed) {
+          const firstError = mlResults.predictions[0]?.error || 'Unknown error';
+          return res.status(503).json({
+            success: false,
+            message: firstError,
+            error: 'ALL_PREDICTIONS_FAILED'
+          });
+        }
+
 
         // Process each image with its ML result
         for (let i = 0; i < req.files.length; i++) {

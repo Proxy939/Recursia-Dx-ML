@@ -649,11 +649,12 @@ def batch_predict():
                                 'error': f'Brain Tumor API returned status {bt_response.status_code}'
                             })
                     except http_requests.exceptions.ConnectionError:
-                        return jsonify({
+                        logger.error('Brain Tumor API (port 5002) is not reachable')
+                        results.append({
+                            'filename': file.filename,
                             'success': False,
-                            'error': 'Brain Tumor API is not available',
-                            'message': 'Please start the Brain Tumor API: python api/brain_tumor_api.py --port 5002'
-                        }), 503
+                            'error': 'Brain Tumor API is not running on port 5002. Run: python api/brain_tumor_api.py --port 5002'
+                        })
                     except http_requests.exceptions.Timeout:
                         results.append({
                             'filename': file.filename,
@@ -669,7 +670,12 @@ def batch_predict():
                         raw_bytes = file.stream.read()
                         img_bytes = io.BytesIO(raw_bytes)
                         is_dicom = file.filename.lower().endswith('.dcm')
-                        mime_type = 'application/dicom' if is_dicom else 'image/png'
+                        if is_dicom:
+                            mime_type = 'application/dicom'
+                        elif file.filename.lower().endswith(('.jpg', '.jpeg')):
+                            mime_type = 'image/jpeg'
+                        else:
+                            mime_type = 'image/png'
                         
                         files_to_send = {'image': (file.filename, img_bytes, mime_type)}
                         pn_response = http_requests.post(
@@ -687,8 +693,11 @@ def batch_predict():
                                     'is_pneumonia': pn_data.get('is_pneumonia', False),
                                     'probabilities': pn_data.get('per_model', {}),
                                     'severity': pn_data.get('severity', 'Unknown'),
+                                    'affected_area_pct': pn_data.get('affected_area_pct', 0),
                                     'risk_level': pn_data.get('risk_level', 'Unknown'),
-                                    'risk_assessment': 'high' if pn_data.get('is_pneumonia') else 'low'
+                                    'risk_assessment': 'high' if pn_data.get('is_pneumonia') else 'low',
+                                    'heatmap_base64': pn_data.get('heatmap_base64'),
+                                    'confidence_tier': pn_data.get('confidence_tier', {})
                                 }
                                 results.append({
                                     'filename': file.filename,
@@ -709,11 +718,12 @@ def batch_predict():
                                 'error': f'Pneumonia API returned status {pn_response.status_code}'
                             })
                     except http_requests.exceptions.ConnectionError:
-                        return jsonify({
+                        logger.error('Pneumonia API (port 5003) is not reachable')
+                        results.append({
+                            'filename': file.filename,
                             'success': False,
-                            'error': 'Pneumonia API is not available',
-                            'message': 'Please start the Pneumonia API: python api/pneumonia_api.py --port 5003'
-                        }), 503
+                            'error': 'Pneumonia API is not running on port 5003. Run: python api/pneumonia_api.py --port 5003'
+                        })
                     except http_requests.exceptions.Timeout:
                         results.append({
                             'filename': file.filename,
