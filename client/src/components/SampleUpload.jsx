@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Progress } from '@/components/ui/progress'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { toast } from 'sonner'
-import { Upload, User, FileImage, AlertCircle, CheckCircle2, Camera, Stethoscope, Brain, Loader2, Play, FlaskConical, Microscope } from 'lucide-react'
+import { Upload, User, FileImage, AlertCircle, CheckCircle2, Camera, Stethoscope, Brain, Loader2, Play, FlaskConical, Microscope, Eye, Activity, Thermometer } from 'lucide-react'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api'
 
@@ -844,18 +844,189 @@ export function SampleUpload({ onNext, onSampleCreated }) {
                 </div>
               )}
 
-              {mlResults && (
-                <Alert>
-                  <Brain className="h-4 w-4" />
-                  <AlertTitle>AI Analysis Complete</AlertTitle>
-                  <AlertDescription>
-                    {mlResults.mlAnalysis ? 
-                      `${mlResults.mlAnalysis.imagesAnalyzed} images analyzed. ${mlResults.mlAnalysis.aiInsights?.highRiskImages || 0} high-risk findings detected.` :
-                      'Sample processing completed successfully.'
-                    }
-                  </AlertDescription>
-                </Alert>
-              )}
+              {mlResults && (() => {
+                // Extract real ML data from the response — no hardcoding
+                const sample = mlResults?.data?.sample
+                const firstImage = sample?.images?.[0]
+                const analysis = firstImage?.mlAnalysis || {}
+                const heatmapB64 = firstImage?.heatmap?.base64 || null
+                const origPreview = uploadedFiles?.[0]?.preview || null
+                const isPneumonia = sample?.imageType === 'pneumonia'
+
+                // Real probabilities from model
+                const rawConf = analysis.confidence ?? 0
+                const confidence = rawConf <= 1 ? (rawConf * 100).toFixed(1) : parseFloat(rawConf).toFixed(1)
+                const probs = analysis.classProbabilities || {}
+
+                // Per-model ensemble breakdown (pneumonia only)
+                const dnProb  = analysis.metadata?.per_model?.densenet  != null
+                  ? (analysis.metadata.per_model.densenet  * 100).toFixed(1) : null
+                const enProb  = analysis.metadata?.per_model?.efficientnet != null
+                  ? (analysis.metadata.per_model.efficientnet * 100).toFixed(1) : null
+
+                // Tumor type (brain)
+                const tumorType = analysis.tumorType || analysis.metadata?.prediction?.predicted_class || null
+                const severity  = analysis.severity || null
+                const affectedPct = analysis.affectedAreaPct ?? firstImage?.heatmap?.affectedAreaPct ?? null
+
+                const isPositive = analysis.isPneumonia ||
+                  analysis.prediction === 'Pneumonia' ||
+                  (tumorType && tumorType !== 'notumor')
+
+                return (
+                  <div className="space-y-4">
+                    {/* Summary alert */}
+                    <Alert className={isPositive ? 'border-red-200 bg-red-50' : 'border-green-200 bg-green-50'}>
+                      <Activity className="h-4 w-4" />
+                      <AlertTitle>AI Analysis Complete</AlertTitle>
+                      <AlertDescription>
+                        {isPneumonia
+                          ? `${isPositive ? 'Pneumonia detected' : 'Normal chest X-ray'} · Confidence: ${confidence}%`
+                          : tumorType
+                            ? `${tumorType.charAt(0).toUpperCase() + tumorType.slice(1)} detected · Confidence: ${confidence}%`
+                            : `Analysis complete · Confidence: ${confidence}%`
+                        }
+                        {severity && ` · Severity: ${severity}`}
+                      </AlertDescription>
+                    </Alert>
+
+                    {/* X-ray + Grad-CAM viewer */}
+                    {(origPreview || heatmapB64) && (
+                      <Card className="border-indigo-200">
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-sm flex items-center gap-2 text-indigo-700">
+                            <Eye className="h-4 w-4" />
+                            Imaging Analysis
+                            {heatmapB64 && (
+                              <Badge variant="outline" className="text-xs ml-1">Grad-CAM Active</Badge>
+                            )}
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className={`grid gap-3 ${origPreview && heatmapB64 ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                            {origPreview && (
+                              <div className="flex flex-col items-center gap-1">
+                                <span className="text-xs text-muted-foreground font-medium">Original Image</span>
+                                <img
+                                  src={origPreview}
+                                  alt="Uploaded scan"
+                                  className="rounded-lg border w-full object-contain"
+                                  style={{ maxHeight: '220px', background: '#000' }}
+                                />
+                              </div>
+                            )}
+                            {heatmapB64 && (
+                              <div className="flex flex-col items-center gap-1">
+                                <span className="text-xs text-muted-foreground font-medium">Grad-CAM Heatmap</span>
+                                <div className="relative w-full">
+                                  <img
+                                    src={heatmapB64}
+                                    alt="Grad-CAM heatmap"
+                                    className="rounded-lg border w-full object-contain"
+                                    style={{ maxHeight: '220px', background: '#000' }}
+                                  />
+                                  <div className="absolute top-1 right-1">
+                                    <Badge className="bg-indigo-700 text-white text-[10px]">GRAD-CAM</Badge>
+                                  </div>
+                                </div>
+                                {affectedPct !== null && (
+                                  <span className="text-xs font-semibold text-orange-600">
+                                    Affected area: {parseFloat(affectedPct).toFixed(1)}%
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Color legend */}
+                          {heatmapB64 && (
+                            <div className="flex items-center gap-3 mt-3 flex-wrap">
+                              <span className="text-xs text-muted-foreground font-medium">Attention:</span>
+                              {[['#ff0000','High'],['#ff8800','Med'],['#ffff00','Low'],['#0000ff','Min']].map(([c,l])=>(
+                                <span key={l} className="flex items-center gap-1 text-xs">
+                                  <span className="w-3 h-3 rounded-sm inline-block" style={{background:c}} />
+                                  {l}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {/* Real probability scores */}
+                    <Card>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm flex items-center gap-2">
+                          <Activity className="h-4 w-4 text-blue-500" />
+                          Model Probability Scores
+                          <Badge variant="outline" className="text-[10px] ml-1">Live from ML</Badge>
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-3">
+                        {/* Confidence bar */}
+                        <div>
+                          <div className="flex justify-between text-xs mb-1">
+                            <span className="text-muted-foreground">Overall Confidence</span>
+                            <span className="font-bold">{confidence}%</span>
+                          </div>
+                          <div className="w-full bg-gray-200 rounded-full h-2">
+                            <div
+                              className={`h-2 rounded-full ${
+                                parseFloat(confidence) >= 80 ? 'bg-green-500' :
+                                parseFloat(confidence) >= 60 ? 'bg-yellow-500' : 'bg-red-500'
+                              }`}
+                              style={{ width: `${Math.min(parseFloat(confidence), 100)}%` }}
+                            />
+                          </div>
+                        </div>
+
+                        {/* Class probabilities (brain tumor) */}
+                        {Object.keys(probs).length > 0 && (
+                          <div className="space-y-2">
+                            <span className="text-xs text-muted-foreground font-medium">Class Probabilities</span>
+                            {Object.entries(probs).map(([cls, prob]) => {
+                              const pct = prob <= 1 ? (prob * 100).toFixed(1) : parseFloat(prob).toFixed(1)
+                              return (
+                                <div key={cls}>
+                                  <div className="flex justify-between text-xs mb-0.5">
+                                    <span className="capitalize">{cls}</span>
+                                    <span className="font-semibold">{pct}%</span>
+                                  </div>
+                                  <div className="w-full bg-gray-100 rounded-full h-1.5">
+                                    <div
+                                      className="h-1.5 rounded-full bg-blue-500"
+                                      style={{ width: `${Math.min(parseFloat(pct), 100)}%` }}
+                                    />
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        )}
+
+                        {/* Ensemble model breakdown (pneumonia) */}
+                        {(dnProb !== null || enProb !== null) && (
+                          <div className="grid grid-cols-2 gap-3 pt-1">
+                            {dnProb !== null && (
+                              <div className="text-center p-2 bg-blue-50 rounded-lg border border-blue-200">
+                                <div className="text-sm font-bold text-blue-700">{dnProb}%</div>
+                                <div className="text-[10px] text-muted-foreground">DenseNet121</div>
+                              </div>
+                            )}
+                            {enProb !== null && (
+                              <div className="text-center p-2 bg-purple-50 rounded-lg border border-purple-200">
+                                <div className="text-sm font-bold text-purple-700">{enProb}%</div>
+                                <div className="text-[10px] text-muted-foreground">EfficientNet-B0</div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </div>
+                )
+              })()}
 
               {!mlResults && (
                 <Alert>

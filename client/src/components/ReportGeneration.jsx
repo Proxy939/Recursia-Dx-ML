@@ -20,7 +20,9 @@ import {
   RefreshCw,
   Sparkles,
   User,
-  Calendar
+  Calendar,
+  Eye,
+  Activity
 } from 'lucide-react'
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001/api'
@@ -574,6 +576,84 @@ export function ReportGeneration({ sample, onNext }) {
                     </div>
                   </CardContent>
                 </Card>
+
+                {/* ── Imaging Panel: X-ray + Grad-CAM ─────────────────── */}
+                {(() => {
+                  const imgs = sample?.images || []
+                  const panels = imgs
+                    .filter(img => img.url || img.heatmap?.base64)
+                    .map((img, i) => ({
+                      orig: img.url || null,
+                      heatmap: img.heatmap?.base64 || null,
+                      filename: img.originalName || img.filename || `Image ${i + 1}`,
+                      affectedPct: img.mlAnalysis?.affectedAreaPct ?? img.heatmap?.affectedAreaPct ?? null,
+                    }))
+                  if (panels.length === 0) return null
+                  return (
+                    <Card className="mb-6 border-indigo-200">
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-lg flex items-center gap-2">
+                          <Eye className="h-5 w-5 text-indigo-600" />
+                          Imaging Evidence
+                          <Badge variant="outline" className="text-xs ml-1">Original + Grad-CAM</Badge>
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        {panels.map((p, i) => (
+                          <div key={i} className="mb-4 last:mb-0">
+                            {panels.length > 1 && (
+                              <p className="text-xs text-muted-foreground font-medium mb-2">{p.filename}</p>
+                            )}
+                            <div className={`grid gap-4 ${p.orig && p.heatmap ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                              {p.orig && (
+                                <div className="flex flex-col items-center gap-1">
+                                  <span className="text-xs font-medium text-gray-600">Original Scan</span>
+                                  <img
+                                    src={p.orig.startsWith('data:') ? p.orig : `${import.meta.env.VITE_SERVER_URL || 'http://localhost:5000'}${p.orig}`}
+                                    alt="Original scan"
+                                    className="rounded-lg border w-full object-contain"
+                                    style={{ maxHeight: '240px', background: '#000' }}
+                                  />
+                                </div>
+                              )}
+                              {p.heatmap && (
+                                <div className="flex flex-col items-center gap-1">
+                                  <span className="text-xs font-medium text-indigo-700">Grad-CAM Heatmap</span>
+                                  <div className="relative w-full">
+                                    <img
+                                      src={p.heatmap}
+                                      alt="Grad-CAM heatmap"
+                                      className="rounded-lg border w-full object-contain"
+                                      style={{ maxHeight: '240px', background: '#000' }}
+                                    />
+                                    <div className="absolute top-1 right-1">
+                                      <Badge className="bg-indigo-700 text-white text-[10px]">GRAD-CAM</Badge>
+                                    </div>
+                                  </div>
+                                  {p.affectedPct !== null && (
+                                    <span className="text-xs font-semibold text-orange-600">
+                                      Affected area: {parseFloat(p.affectedPct).toFixed(1)}%
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                        {/* Legend */}
+                        <div className="flex items-center gap-3 mt-3 flex-wrap border-t pt-2">
+                          <span className="text-xs text-muted-foreground font-medium">Attention map:</span>
+                          {[['#ff0000','High'],['#ff8800','Moderate'],['#ffff00','Low'],['#0000ff','Minimal']].map(([c,l])=>(
+                            <span key={l} className="flex items-center gap-1 text-xs text-gray-600">
+                              <span className="w-3 h-3 rounded-sm inline-block" style={{background:c}} />
+                              {l}
+                            </span>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )
+                })()}
 
                 {/* Clinical Summary (Gemini) */}
                 <Card className="mb-6">
