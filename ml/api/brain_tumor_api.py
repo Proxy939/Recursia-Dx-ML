@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Brain Tumor EfficientNetB3 API
 4-Class MRI Classification: Glioma | Meningioma | Pituitary | No Tumor
