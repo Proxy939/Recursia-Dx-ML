@@ -146,7 +146,7 @@ const sampleSchema = new mongoose.Schema({
   aiAnalysis: {
     overallPrediction: {
       type: String,
-      enum: ['benign', 'malignant', 'indeterminate', 'Pneumonia', 'Normal']
+      enum: ['benign', 'malignant', 'indeterminate', 'Pneumonia', 'Normal', 'Glioma', 'Meningioma', 'Pituitary', 'Tumor', 'No Tumor']
     },
     averageConfidence: Number,
     highRiskImages: Number,

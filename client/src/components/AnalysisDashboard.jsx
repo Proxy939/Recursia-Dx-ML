@@ -72,15 +72,23 @@ export function AnalysisDashboard({ onNext, sample, analysisType = 'general' }) 
     }
 
     // Aggregate ML results from all images
-    // Check for tumor detection - model returns 'Tumor' or uses is_tumor flag
+    // Check for tumor detection - model returns specific class names or uses is_tumor flag
+    const TUMOR_CLASSES = ['Tumor', 'Glioma', 'Meningioma', 'Pituitary', 'malignant']
     const tumorDetections = mlAnalyses.filter(analysis => 
-      analysis.prediction === 'Tumor' || 
-      analysis.prediction === 'malignant' ||
+      TUMOR_CLASSES.includes(analysis.prediction) ||
       analysis.is_tumor === true ||
-      (analysis.metadata?.prediction?.is_tumor === true)
+      (analysis.metadata?.prediction?.is_tumor === true) ||
+      (analysis.metadata?.is_tumor === true) ||
+      (analysis.metadata?.predicted_class && analysis.metadata.predicted_class !== 'No Tumor' && analysis.metadata.predicted_class !== 'Non-Tumor' && analysis.metadata.predicted_class !== 'notumor')
     )
     const avgConfidence = mlAnalyses.reduce((sum, analysis) => sum + (analysis.confidence || 0), 0) / mlAnalyses.length
     const riskLevels = mlAnalyses.map(analysis => analysis.riskAssessment || 'medium')
+
+    // Get the specific tumor class for display
+    const tumorClasses = mlAnalyses.map(analysis => {
+      const cls = analysis.prediction || analysis.metadata?.predicted_class || 'Unknown'
+      return cls
+    })
 
     // Calculate tumor percentage
     const tumorPercentage = mlAnalyses.length > 0 ? (tumorDetections.length / mlAnalyses.length) * 100 : 0
@@ -92,7 +100,7 @@ export function AnalysisDashboard({ onNext, sample, analysisType = 'general' }) 
       const probs = analysis.classProbabilities || analysis.metadata?.prediction?.probabilities || analysis.metadata?.probabilities || {}
       
       // Try to get the notumor probability to calculate tumor prob as (100 - notumor)
-      let notumorProb = probs.notumor ?? probs.Notumor ?? probs['no tumor'] ?? probs['No Tumor'] ?? null
+      let notumorProb = probs.notumor ?? probs.Notumor ?? probs['no tumor'] ?? probs['No Tumor'] ?? probs['No_Tumor'] ?? null
       
       let tumorProb
       if (notumorProb !== null) {
@@ -100,8 +108,8 @@ export function AnalysisDashboard({ onNext, sample, analysisType = 'general' }) 
         if (notumorProb <= 1) notumorProb = notumorProb * 100
         tumorProb = 100 - notumorProb
       } else {
-        // Fallback: if prediction is tumor class, use confidence; if notumor, use 0
-        const isTumor = analysis.prediction === 'malignant' || analysis.prediction === 'Tumor'
+        // Fallback: if prediction is a tumor class, use confidence
+        const isTumor = TUMOR_CLASSES.includes(analysis.prediction)
         const conf = analysis.confidence || 0
         tumorProb = isTumor ? (conf <= 1 ? conf * 100 : conf) : (1 - (conf <= 1 ? conf : conf / 100)) * 100
       }
@@ -112,12 +120,12 @@ export function AnalysisDashboard({ onNext, sample, analysisType = 'general' }) 
     // Get the highest tumor probability for critical assessment
     const maxTumorProbability = Math.max(...mlAnalyses.map(analysis => {
       const probs = analysis.classProbabilities || analysis.metadata?.prediction?.probabilities || analysis.metadata?.probabilities || {}
-      let notumorProb = probs.notumor ?? probs.Notumor ?? probs['no tumor'] ?? probs['No Tumor'] ?? null
+      let notumorProb = probs.notumor ?? probs.Notumor ?? probs['no tumor'] ?? probs['No Tumor'] ?? probs['No_Tumor'] ?? null
       if (notumorProb !== null) {
         if (notumorProb <= 1) notumorProb = notumorProb * 100
         return 100 - notumorProb
       }
-      const isTumor = analysis.prediction === 'malignant' || analysis.prediction === 'Tumor'
+      const isTumor = TUMOR_CLASSES.includes(analysis.prediction)
       const conf = analysis.confidence || 0
       return isTumor ? (conf <= 1 ? conf * 100 : conf) : 0
     }))
@@ -127,6 +135,7 @@ export function AnalysisDashboard({ onNext, sample, analysisType = 'general' }) 
       analyzedImages: mlAnalyses.length,
       tumorDetected: tumorDetections.length > 0,
       tumorCount: tumorDetections.length,
+      tumorClasses: tumorClasses,
       tumorPercentage: tumorPercentage,
       avgTumorProbability: avgTumorProbability, // Already in percentage
       maxTumorProbability: maxTumorProbability, // Already in percentage
@@ -1088,6 +1097,8 @@ export function AnalysisDashboard({ onNext, sample, analysisType = 'general' }) 
                 // Threshold: if tumor probability < 54%, consider it Normal
                 const tumorThreshold = 54
                 const isTumorPositive = realTimeData.avgTumorProbability >= tumorThreshold
+                const primaryClass = realTimeData.tumorClasses?.[0] || 'Unknown'
+                const isSpecificTumor = ['Glioma', 'Meningioma', 'Pituitary'].includes(primaryClass)
                 
                 return (
                 <div className="space-y-4">
@@ -1095,9 +1106,13 @@ export function AnalysisDashboard({ onNext, sample, analysisType = 'general' }) 
                     {isTumorPositive ? (
                       <>
                         <AlertTriangle className="h-4 w-4 text-red-600" />
-                        <AlertTitle className="text-red-600">Abnormality Detected</AlertTitle>
+                        <AlertTitle className="text-red-600">
+                          {isSpecificTumor ? `${primaryClass} Detected` : 'Tumor Detected'}
+                        </AlertTitle>
                         <AlertDescription>
-                          {realTimeData.tumorCount} suspicious region(s) detected. Further review recommended.
+                          {isSpecificTumor 
+                            ? `AI model classified this scan as ${primaryClass} with ${(realTimeData.averageConfidence * 100).toFixed(1)}% confidence. Further clinical review recommended.`
+                            : `${realTimeData.tumorCount} abnormal region(s) detected. Further review recommended.`}
                         </AlertDescription>
                       </>
                     ) : (
@@ -1105,7 +1120,7 @@ export function AnalysisDashboard({ onNext, sample, analysisType = 'general' }) 
                         <CheckCircle2 className="h-4 w-4 text-green-600" />
                         <AlertTitle className="text-green-600">Analysis Complete - Normal</AlertTitle>
                         <AlertDescription>
-                          No malignant cells detected. Analysis indicates normal tissue.
+                          No tumor detected. Analysis indicates normal brain tissue.
                         </AlertDescription>
                       </>
                     )}
@@ -1115,9 +1130,9 @@ export function AnalysisDashboard({ onNext, sample, analysisType = 'general' }) 
                     <Card>
                       <CardContent className="p-4 text-center">
                         <div className={`text-2xl font-bold ${isTumorPositive ? 'text-red-600' : 'text-green-600'}`}>
-                          {isTumorPositive ? 'Abnormal' : 'Normal'}
+                          {isSpecificTumor ? primaryClass : (isTumorPositive ? 'Abnormal' : 'Normal')}
                         </div>
-                        <div className="text-sm text-muted-foreground">Overall Assessment</div>
+                        <div className="text-sm text-muted-foreground">Classification</div>
                       </CardContent>
                     </Card>
                     <Card>
@@ -1129,9 +1144,9 @@ export function AnalysisDashboard({ onNext, sample, analysisType = 'general' }) 
                     <Card>
                       <CardContent className="p-4 text-center">
                         <div className={`text-2xl font-bold ${isTumorPositive ? 'text-red-600' : 'text-green-600'}`}>
-                          {isTumorPositive ? realTimeData.tumorCount : 0}
+                          {isTumorPositive ? 'HIGH' : 'LOW'}
                         </div>
-                        <div className="text-sm text-muted-foreground">Suspicious Regions</div>
+                        <div className="text-sm text-muted-foreground">Risk Level</div>
                       </CardContent>
                     </Card>
                   </div>

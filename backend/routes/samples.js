@@ -1099,52 +1099,130 @@ router.get('/heatmaps/list', catchAsync(async (req, res) => {
 // Demo Analysis Endpoint - REAL ML Predictions
 // ================================================================
 router.post('/demo-analysis', catchAsync(async (req, res) => {
-  const demoType = req.query.type || 'tumor';
+  const demoType = req.query.type || 'glioma';
   console.log(`🧪 Demo analysis requested: ${demoType}`);
 
-  const isDemoTumor = demoType === 'tumor';
+  // Project root = parent of backend/
+  const PROJECT_ROOT = path.resolve(__dirname_routes, '..', '..');
+  const demoImagesDir = path.join(PROJECT_ROOT, 'demo_images');
 
-  // Demo images from demo_images folder
-  const demoImagesDir = path.join(process.cwd(), '..', 'demo_images');
-  const demoImageFilename = isDemoTumor ? 'cancer.jpg' : 'non_tumor_sample.jpg';
-  const demoImagePath = path.join(demoImagesDir, demoImageFilename);
+  // Map demo type to file and category
+  const DEMO_MAP = {
+    // Pneumonia types
+    'pneumonia-positive': {
+      file: path.join(demoImagesDir, 'pneumonia', 'pneumonia_positive.dcm'),
+      category: 'pneumonia',
+      imageType: 'pneumonia',
+      label: 'Pneumonia Positive',
+      sampleType: 'Chest X-ray',
+      patientName: 'Demo Patient (Pneumonia Positive)',
+    },
+    'pneumonia-negative': {
+      file: path.join(demoImagesDir, 'pneumonia', 'pneumonia_negative.dcm'),
+      category: 'pneumonia',
+      imageType: 'pneumonia',
+      label: 'Pneumonia Negative (Normal)',
+      sampleType: 'Chest X-ray',
+      patientName: 'Demo Patient (Normal Chest X-Ray)',
+    },
+    // Brain tumor types
+    'glioma': {
+      file: path.join(demoImagesDir, 'brain_tumor', 'glioma_sample.jpg'),
+      category: 'brain_tumor',
+      imageType: 'tissue',
+      label: 'Glioma',
+      sampleType: 'Brain MRI',
+      patientName: 'Demo Patient (Glioma Sample)',
+    },
+    'meningioma': {
+      file: path.join(demoImagesDir, 'brain_tumor', 'meningioma_sample.jpg'),
+      category: 'brain_tumor',
+      imageType: 'tissue',
+      label: 'Meningioma',
+      sampleType: 'Brain MRI',
+      patientName: 'Demo Patient (Meningioma Sample)',
+    },
+    'pituitary': {
+      file: path.join(demoImagesDir, 'brain_tumor', 'pituitary_sample.jpg'),
+      category: 'brain_tumor',
+      imageType: 'tissue',
+      label: 'Pituitary Tumor',
+      sampleType: 'Brain MRI',
+      patientName: 'Demo Patient (Pituitary Sample)',
+    },
+    'no-tumor': {
+      file: path.join(demoImagesDir, 'brain_tumor', 'no_tumor_sample.jpg'),
+      category: 'brain_tumor',
+      imageType: 'tissue',
+      label: 'No Tumor (Normal)',
+      sampleType: 'Brain MRI',
+      patientName: 'Demo Patient (Normal Brain MRI)',
+    },
+  };
 
-  console.log(`📁 Demo image path: ${demoImagePath}`);
-
-  // Check if demo image exists
-  if (!fs.existsSync(demoImagePath)) {
-    console.error(`❌ Demo image not found: ${demoImagePath}`);
-    return res.status(404).json({
+  const demo = DEMO_MAP[demoType];
+  if (!demo) {
+    return res.status(400).json({
       success: false,
-      error: `Demo image not found. Please add ${demoImageFilename} to demo_images folder.`
+      error: `Invalid demo type: ${demoType}. Valid types: ${Object.keys(DEMO_MAP).join(', ')}`
     });
   }
 
-  // Copy image to uploads folder for frontend access
-  const uploadsDir = path.join(process.cwd(), 'uploads');
-  if (!fs.existsSync(uploadsDir)) {
-    fs.mkdirSync(uploadsDir, { recursive: true });
+  // Check if demo image exists
+  if (!fs.existsSync(demo.file)) {
+    console.error(`❌ Demo image not found: ${demo.file}`);
+    return res.status(404).json({
+      success: false,
+      error: `Demo image not found: ${path.basename(demo.file)}. Check demo_images/ folder.`
+    });
   }
 
-  const copiedFilename = `demo_${Date.now()}_${demoImageFilename}`;
+  // Copy image to uploads folder
+  const uploadsDir = path.join(PROJECT_ROOT, 'backend', 'uploads');
+  if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+
+  const ext = path.extname(demo.file);
+  const copiedFilename = `demo_${Date.now()}_${demoType}${ext}`;
   const copiedPath = path.join(uploadsDir, copiedFilename);
-  fs.copyFileSync(demoImagePath, copiedPath);
+  fs.copyFileSync(demo.file, copiedPath);
   console.log(`📋 Demo image copied to: ${copiedPath}`);
 
-  const imageUrl = `/uploads/${copiedFilename}`;
+  // For DICOM files (.dcm), convert to PNG for frontend display
+  let displayFilename = copiedFilename;
+  if (ext.toLowerCase() === '.dcm') {
+    try {
+      const pngFilename = copiedFilename.replace('.dcm', '.png');
+      const pngPath = path.join(uploadsDir, pngFilename);
+      const dcm2pngScript = path.join(PROJECT_ROOT, 'ml', 'utils', 'dcm2png.py');
+      
+      await new Promise((resolve, reject) => {
+        const proc = spawn('python', [dcm2pngScript, copiedPath, pngPath]);
+        proc.on('close', (code) => code === 0 ? resolve() : reject(new Error(`dcm2png exit ${code}`)));
+        proc.on('error', reject);
+      });
+      
+      if (fs.existsSync(pngPath)) {
+        displayFilename = pngFilename;
+        console.log(`🖼️ DICOM converted to PNG: ${pngFilename}`);
+      }
+    } catch (convErr) {
+      console.warn(`⚠️ DICOM-to-PNG conversion failed: ${convErr.message}`);
+    }
+  }
+
+  const imageUrl = `/uploads/${displayFilename}`;
 
   // ================================================================
-  // REAL ML PREDICTION via Brain Tumor API
+  // REAL ML PREDICTION
   // ================================================================
   let mlResult = null;
 
   try {
-    console.log('🧠 Sending image to Brain Tumor ML service for REAL prediction...');
+    console.log(`🧠 Sending ${demo.category} image to ML service...`);
 
-    // Use MLService to get real predictions
     const mlResults = await MLService.batchPredict(
       [{ path: copiedPath, filename: copiedFilename }],
-      'tissue'
+      demo.imageType
     );
 
     console.log('📊 ML Results:', JSON.stringify(mlResults, null, 2));
@@ -1153,12 +1231,13 @@ router.post('/demo-analysis', catchAsync(async (req, res) => {
       const prediction = mlResults.predictions[0];
       if (prediction.success && prediction.prediction) {
         mlResult = {
-          predicted_class: prediction.prediction.predicted_class,
+          predicted_class: prediction.prediction.predicted_class || prediction.prediction.prediction || 'Unknown',
           confidence: prediction.prediction.confidence,
           is_tumor: prediction.prediction.is_tumor,
-          probabilities: prediction.prediction.probabilities || {},
+          isPneumonia: prediction.prediction.isPneumonia,
+          probabilities: prediction.prediction.probabilities || prediction.prediction.classProbabilities || {},
           risk_level: prediction.prediction.risk_level,
-          risk_assessment: prediction.prediction.risk_assessment || 'medium'
+          risk_assessment: prediction.prediction.risk_assessment || prediction.prediction.riskAssessment || 'medium'
         };
         console.log(`✅ Real ML prediction: ${mlResult.predicted_class} @ ${(mlResult.confidence * 100).toFixed(1)}%`);
       }
@@ -1167,81 +1246,95 @@ router.post('/demo-analysis', catchAsync(async (req, res) => {
     console.error('⚠️ ML service error:', mlError.message);
   }
 
-  // If ML failed, return error (no fallback to fake data)
   if (!mlResult) {
+    const serviceMsg = demo.category === 'pneumonia'
+      ? 'Pneumonia API on port 5003'
+      : 'Brain Tumor API on port 5002';
     return res.status(503).json({
       success: false,
-      error: 'ML service unavailable. Please ensure Brain Tumor API is running on port 5002.',
-      message: 'Start Brain Tumor API with: cd ml/api && python brain_tumor_api.py --port 5002'
+      error: `ML service unavailable. Please ensure ${serviceMsg} is running.`
     });
   }
 
-  // Generate unique sample ID for demo
-  const sampleCount = await Sample.countDocuments();
-  const sampleId = `DEMO-${new Date().getFullYear()}-${String(sampleCount + 1).padStart(4, '0')}`;
-
-  // Map prediction to backend format
-  const mapPrediction = (predicted_class) => {
-    switch (predicted_class) {
-      case 'Non-Tumor': return 'benign';
-      case 'Tumor': return 'malignant';
-      default: return 'indeterminate';
+  // Map prediction to schema enum
+  const mapPrediction = (predicted_class, category) => {
+    if (category === 'pneumonia') {
+      const lower = (predicted_class || '').toLowerCase();
+      return lower.includes('pneumonia') ? 'Pneumonia' : 'Normal';
     }
+    // Brain tumor
+    const cls = (predicted_class || '').toLowerCase();
+    if (cls.includes('glioma')) return 'Glioma';
+    if (cls.includes('meningioma')) return 'Meningioma';
+    if (cls.includes('pituitary')) return 'Pituitary';
+    if (cls.includes('no') || cls.includes('non') || cls.includes('normal')) return 'No Tumor';
+    return 'indeterminate';
   };
 
-  // Create demo sample in database with REAL ML results
+  // Generate unique sample ID
+  const sampleCount = await Sample.countDocuments();
+  const sampleId = `DEMO-${new Date().getFullYear()}-${String(sampleCount + 1).padStart(4, '0')}`;
+  const mappedPrediction = mapPrediction(mlResult.predicted_class, demo.category);
+
+  // Create demo sample in database
   const demoSample = new Sample({
     sampleId,
     patientInfo: {
       patientId: `DEMO-PT-${Date.now()}`,
-      name: isDemoTumor ? 'Demo Patient (Tumor Sample)' : 'Demo Patient (Normal Sample)',
+      name: demo.patientName,
       age: 45,
       gender: 'Female'
     },
-    sampleType: 'Brain MRI',
+    sampleType: demo.sampleType,
     collectionInfo: {
       collectionDate: new Date()
     },
     status: 'Completed',
     priority: 'High',
     images: [{
-      filename: copiedFilename,
-      originalName: isDemoTumor ? 'Tumor WSI Sample' : 'Normal WSI Sample',
-      mimetype: 'image/jpeg',
-      size: fs.statSync(demoImagePath).size,
+      filename: displayFilename,
+      originalName: demo.label,
+      mimetype: ext === '.dcm' ? 'application/dicom' : 'image/jpeg',
+      size: fs.statSync(demo.file).size,
       uploadedAt: new Date(),
       path: copiedPath,
       url: imageUrl,
       mlAnalysis: {
-        prediction: mapPrediction(mlResult.predicted_class),
+        prediction: mappedPrediction,
         confidence: mlResult.confidence,
-        riskAssessment: mlResult.risk_assessment,
+        riskAssessment: mlResult.risk_assessment || 'medium',
         processingTime: 2500,
-        modelVersion: 'EfficientNetB3-BrainTumor-v1.0',
+        modelVersion: demo.category === 'pneumonia'
+          ? 'DenseNet121-EfficientNetB0-Pneumonia-v1.0'
+          : 'EfficientNetB3-BrainTumor-v1.0',
         analyzedAt: new Date(),
+        isPneumonia: mlResult.isPneumonia || false,
+        classProbabilities: mlResult.probabilities || {},
         metadata: mlResult
       }
     }],
     aiAnalysis: {
-      overallPrediction: mapPrediction(mlResult.predicted_class),
+      overallPrediction: mappedPrediction,
       averageConfidence: mlResult.confidence,
-      highRiskCount: mlResult.is_tumor ? 1 : 0,
+      highRiskCount: (mlResult.is_tumor || mlResult.isPneumonia) ? 1 : 0,
       analyzedAt: new Date(),
-      modelVersion: 'EfficientNetB3-BrainTumor-v1.0',
+      modelVersion: demo.category === 'pneumonia'
+        ? 'DenseNet121-EfficientNetB0-Pneumonia-v1.0'
+        : 'EfficientNetB3-BrainTumor-v1.0',
       aiInsights: {
         totalImages: 1,
-        highRiskImages: mlResult.is_tumor ? 1 : 0,
+        highRiskImages: (mlResult.is_tumor || mlResult.isPneumonia) ? 1 : 0,
         modelConfidence: mlResult.confidence
       }
     }
   });
 
   await demoSample.save();
-  console.log(`✅ Demo sample created: ${sampleId} (REAL ML Result: ${mlResult.predicted_class} @ ${(mlResult.confidence * 100).toFixed(1)}%)`);
+  console.log(`✅ Demo sample created: ${sampleId} (${demo.label} → ${mappedPrediction} @ ${(mlResult.confidence * 100).toFixed(1)}%)`);
 
   res.status(200).json({
     success: true,
-    message: `Demo ${demoType} sample analyzed successfully with REAL ML prediction`,
+    message: `Demo ${demo.label} analyzed successfully with REAL ML prediction`,
     data: {
       sample: demoSample,
       mlAnalysis: {
@@ -1249,7 +1342,7 @@ router.post('/demo-analysis', catchAsync(async (req, res) => {
         predictions: [mlResult],
         aiInsights: {
           totalImages: 1,
-          highRiskImages: mlResult.is_tumor ? 1 : 0,
+          highRiskImages: (mlResult.is_tumor || mlResult.isPneumonia) ? 1 : 0,
           modelConfidence: mlResult.confidence
         }
       }

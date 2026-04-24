@@ -43,6 +43,7 @@ export function SampleUpload({ onNext, onSampleCreated }) {
   const [analysisProgress, setAnalysisProgress] = useState(0)
   const [showDemoDialog, setShowDemoDialog] = useState(false)
   const [isDemoMode, setIsDemoMode] = useState(false)
+  const [demoCategory, setDemoCategory] = useState(null) // 'pneumonia' | 'brain-tumor' | null
 
   // Dynamic symptoms based on selected analysis type
   const brainTumorSymptoms = [
@@ -137,23 +138,35 @@ export function SampleUpload({ onNext, onSampleCreated }) {
     })
   }
 
-  // Handle Demo Mode - Process preloaded WSI samples
+  // Handle Demo Mode - Process preloaded samples
   const handleDemoSubmit = async (demoType) => {
     setShowDemoDialog(false)
+    setDemoCategory(null)
     setIsDemoMode(true)
     setIsAnalyzing(true)
     setAnalysisProgress(0)
     
+    // Determine category for patient data
+    const isPneumonia = demoType.startsWith('pneumonia')
+    const DEMO_LABELS = {
+      'pneumonia-positive': 'Pneumonia Positive',
+      'pneumonia-negative': 'Normal Chest X-Ray',
+      'glioma': 'Glioma Sample',
+      'meningioma': 'Meningioma Sample',
+      'pituitary': 'Pituitary Tumor Sample',
+      'no-tumor': 'Normal Brain MRI',
+    }
+
     // Auto-fill demo patient data
     setPatientData(prev => ({
       ...prev,
       patientInfo: {
         patientId: `DEMO-${Date.now()}`,
-        name: demoType === 'tumor' ? 'Demo Patient (Tumor Sample)' : 'Demo Patient (Normal Sample)',
+        name: `Demo Patient (${DEMO_LABELS[demoType] || demoType})`,
         age: '45',
         gender: 'Female'
       },
-      imageType: 'tissue'
+      imageType: isPneumonia ? 'pneumonia' : 'tissue'
     }))
     
     try {
@@ -177,14 +190,16 @@ export function SampleUpload({ onNext, onSampleCreated }) {
       setAnalysisProgress(100)
       
       if (!response.ok) {
-        throw new Error('Demo analysis failed')
+        const errData = await response.json().catch(() => ({}))
+        const errMsg = typeof errData.error === 'string' ? errData.error : (errData.message || 'Demo analysis failed')
+        throw new Error(errMsg)
       }
       
       const result = await response.json()
       console.log('✅ Demo result:', result)
       
       setMlResults(result)
-      toast.success(`Demo ${demoType} sample analyzed successfully!`)
+      toast.success(`Demo ${DEMO_LABELS[demoType]} analyzed successfully!`)
       
       if (onSampleCreated) {
         onSampleCreated(result.data.sample)
@@ -321,51 +336,158 @@ export function SampleUpload({ onNext, onSampleCreated }) {
         </div>
         <div className="flex items-center gap-3">
           {/* Demo Button */}
-          <Dialog open={showDemoDialog} onOpenChange={setShowDemoDialog}>
+          <Dialog open={showDemoDialog} onOpenChange={(open) => { setShowDemoDialog(open); if (!open) setDemoCategory(null); }}>
             <DialogTrigger asChild>
               <Button size="sm">
                 <FlaskConical className="h-4 w-4 mr-2" />
                 Demo Mode
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-md">
+            <DialogContent className="sm:max-w-lg">
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
                   <Microscope className="h-5 w-5" />
-                  Select Demo Sample
+                  {demoCategory === null ? 'Select Analysis Type' : demoCategory === 'pneumonia' ? 'Pneumonia Detection' : 'Brain Tumor Classification'}
                 </DialogTitle>
                 <DialogDescription>
-                  Choose a preloaded sample to test the Brain Tumor detection model.
+                  {demoCategory === null
+                    ? 'Choose a detection model to demo with preloaded medical samples.'
+                    : demoCategory === 'pneumonia'
+                    ? 'Select a chest X-ray sample for pneumonia detection analysis.'
+                    : 'Select a brain MRI sample for tumor classification analysis.'}
                 </DialogDescription>
               </DialogHeader>
-              <div className="grid grid-cols-2 gap-4 py-4">
-                <Button 
-                  variant="outline" 
-                  className="h-32 flex-col gap-2 border-2 hover:border-red-500 hover:bg-red-50"
-                  onClick={() => handleDemoSubmit('tumor')}
-                  disabled={isAnalyzing}
-                >
-                  <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
-                    <AlertCircle className="h-6 w-6 text-red-600" />
+
+              {/* Step 1: Category Selection */}
+              {demoCategory === null && (
+                <div className="grid grid-cols-2 gap-4 py-4">
+                  <Button 
+                    variant="outline" 
+                    className="h-36 flex-col gap-3 border-2 hover:border-blue-500 hover:bg-blue-950/30 transition-all"
+                    onClick={() => setDemoCategory('pneumonia')}
+                    disabled={isAnalyzing}
+                  >
+                    <div className="w-14 h-14 rounded-full bg-blue-500/20 flex items-center justify-center">
+                      <span className="text-2xl">🫁</span>
+                    </div>
+                    <span className="font-semibold text-base">Pneumonia Detection</span>
+                    <span className="text-xs text-muted-foreground">Chest X-Ray Analysis</span>
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    className="h-36 flex-col gap-3 border-2 hover:border-purple-500 hover:bg-purple-950/30 transition-all"
+                    onClick={() => setDemoCategory('brain-tumor')}
+                    disabled={isAnalyzing}
+                  >
+                    <div className="w-14 h-14 rounded-full bg-purple-500/20 flex items-center justify-center">
+                      <span className="text-2xl">🧠</span>
+                    </div>
+                    <span className="font-semibold text-base">Brain Tumor Analysis</span>
+                    <span className="text-xs text-muted-foreground">MRI Classification</span>
+                  </Button>
+                </div>
+              )}
+
+              {/* Step 2a: Pneumonia Subtypes */}
+              {demoCategory === 'pneumonia' && (
+                <div className="space-y-4 py-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <Button 
+                      variant="outline" 
+                      className="h-32 flex-col gap-2 border-2 hover:border-red-500 hover:bg-red-950/30 transition-all"
+                      onClick={() => handleDemoSubmit('pneumonia-positive')}
+                      disabled={isAnalyzing}
+                    >
+                      <div className="w-12 h-12 rounded-full bg-red-500/20 flex items-center justify-center">
+                        <AlertCircle className="h-6 w-6 text-red-400" />
+                      </div>
+                      <span className="font-semibold">Infected</span>
+                      <span className="text-xs text-muted-foreground">Pneumonia Positive</span>
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      className="h-32 flex-col gap-2 border-2 hover:border-green-500 hover:bg-green-950/30 transition-all"
+                      onClick={() => handleDemoSubmit('pneumonia-negative')}
+                      disabled={isAnalyzing}
+                    >
+                      <div className="w-12 h-12 rounded-full bg-green-500/20 flex items-center justify-center">
+                        <CheckCircle2 className="h-6 w-6 text-green-400" />
+                      </div>
+                      <span className="font-semibold">Normal</span>
+                      <span className="text-xs text-muted-foreground">No Pneumonia</span>
+                    </Button>
                   </div>
-                  <span className="font-semibold">Tumor Sample</span>
-                  <span className="text-xs text-muted-foreground">Tumor MRI sample</span>
-                </Button>
-                <Button 
-                  variant="outline" 
-                  className="h-32 flex-col gap-2 border-2 hover:border-green-500 hover:bg-green-50"
-                  onClick={() => handleDemoSubmit('non-tumor')}
-                  disabled={isAnalyzing}
-                >
-                  <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center">
-                    <CheckCircle2 className="h-6 w-6 text-green-600" />
+                  <Button variant="ghost" size="sm" className="w-full" onClick={() => setDemoCategory(null)}>
+                    ← Back to categories
+                  </Button>
+                </div>
+              )}
+
+              {/* Step 2b: Brain Tumor Subtypes */}
+              {demoCategory === 'brain-tumor' && (
+                <div className="space-y-4 py-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <Button 
+                      variant="outline" 
+                      className="h-28 flex-col gap-2 border-2 hover:border-red-500 hover:bg-red-950/30 transition-all"
+                      onClick={() => handleDemoSubmit('glioma')}
+                      disabled={isAnalyzing}
+                    >
+                      <div className="w-10 h-10 rounded-full bg-red-500/20 flex items-center justify-center">
+                        <Brain className="h-5 w-5 text-red-400" />
+                      </div>
+                      <span className="font-semibold text-sm">Glioma</span>
+                      <span className="text-xs text-muted-foreground">Malignant tumor</span>
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      className="h-28 flex-col gap-2 border-2 hover:border-orange-500 hover:bg-orange-950/30 transition-all"
+                      onClick={() => handleDemoSubmit('meningioma')}
+                      disabled={isAnalyzing}
+                    >
+                      <div className="w-10 h-10 rounded-full bg-orange-500/20 flex items-center justify-center">
+                        <Brain className="h-5 w-5 text-orange-400" />
+                      </div>
+                      <span className="font-semibold text-sm">Meningioma</span>
+                      <span className="text-xs text-muted-foreground">Meningeal tumor</span>
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      className="h-28 flex-col gap-2 border-2 hover:border-yellow-500 hover:bg-yellow-950/30 transition-all"
+                      onClick={() => handleDemoSubmit('pituitary')}
+                      disabled={isAnalyzing}
+                    >
+                      <div className="w-10 h-10 rounded-full bg-yellow-500/20 flex items-center justify-center">
+                        <Brain className="h-5 w-5 text-yellow-400" />
+                      </div>
+                      <span className="font-semibold text-sm">Pituitary</span>
+                      <span className="text-xs text-muted-foreground">Pituitary tumor</span>
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      className="h-28 flex-col gap-2 border-2 hover:border-green-500 hover:bg-green-950/30 transition-all"
+                      onClick={() => handleDemoSubmit('no-tumor')}
+                      disabled={isAnalyzing}
+                    >
+                      <div className="w-10 h-10 rounded-full bg-green-500/20 flex items-center justify-center">
+                        <CheckCircle2 className="h-5 w-5 text-green-400" />
+                      </div>
+                      <span className="font-semibold text-sm">No Tumor</span>
+                      <span className="text-xs text-muted-foreground">Normal brain MRI</span>
+                    </Button>
                   </div>
-                  <span className="font-semibold">Normal Sample</span>
-                  <span className="text-xs text-muted-foreground">Normal MRI sample</span>
-                </Button>
-              </div>
+                  <Button variant="ghost" size="sm" className="w-full" onClick={() => setDemoCategory(null)}>
+                    ← Back to categories
+                  </Button>
+                </div>
+              )}
+
               <p className="text-xs text-center text-muted-foreground">
-                Demo samples are processed using the EfficientNetB3 brain tumor model
+                {demoCategory === 'pneumonia' 
+                  ? 'Analyzed by DenseNet121 + EfficientNet-B0 ensemble on real DICOM chest X-rays'
+                  : demoCategory === 'brain-tumor'
+                  ? 'Classified by EfficientNetB3 model on real brain MRI scans'
+                  : 'All samples are analyzed using real ML models — no mock data'}
               </p>
             </DialogContent>
           </Dialog>
