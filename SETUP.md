@@ -1,206 +1,215 @@
-# RecursiaDx — Setup Guide
+# Recursia-Dx-ML — Setup Guide
 
-## ⚡ Quick Start (One Command)
-
-After cloning the repo and placing the model weights (see Step 4 below):
-
-```powershell
-# From the project root — installs everything and launches all services
-.\start.ps1
-```
-
-This script will:
-- Install `npm` deps for backend + frontend
-- Create Python venv and install ML requirements
-- Check for model weights and `.env` files
-- Open 5 service windows + the browser automatically
+A full-stack AI medical imaging platform for **Brain Tumor Detection** and **Pneumonia Detection**.
 
 ---
 
-
-## Prerequisites (install on any new PC)
+## Prerequisites
 
 | Tool | Version | Download |
 |------|---------|----------|
-| Node.js | ≥ 18.0.0 | https://nodejs.org |
-| Python | ≥ 3.10 | https://python.org |
-| MongoDB | Community | https://mongodb.com/try/download/community |
-| Git | Latest | https://git-scm.com |
+| Node.js | ≥ 18.x | https://nodejs.org |
+| Python | ≥ 3.9 | https://python.org |
+| MongoDB | 6.x+ | https://www.mongodb.com/try/download/community |
+| Git | Any | https://git-scm.com |
 
 ---
 
-## 1. Clone & Install
+## 1. Clone the Repository
 
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/Proxy939/Recursia-Dx-ML.git
 cd Recursia-Dx-ML
 ```
 
-### Backend
+---
+
+## 2. Backend Setup (Node.js)
+
 ```bash
 cd backend
 npm install
 ```
 
-### Frontend
+Create `backend/.env` by copying the example:
 ```bash
-cd ../client
+copy .env.example .env   # Windows
+cp .env.example .env     # Mac/Linux
+```
+
+Edit `.env` and fill in:
+```env
+PORT=5000
+NODE_ENV=development
+ML_API_URL=http://localhost:5001
+MONGODB_URI=mongodb://127.0.0.1:27017/recursiadx
+JWT_SECRET=your-secret-key-here
+JWT_EXPIRE=7d
+JWT_REFRESH_SECRET=your-refresh-secret-here
+JWT_REFRESH_EXPIRE=30d
+ALLOWED_ORIGINS=http://localhost:3000,http://localhost:5173
+```
+
+---
+
+## 3. Frontend Setup (React + Vite)
+
+```bash
+cd client
 npm install
 ```
 
----
-
-## 2. Environment Variables
-
-### Backend (`backend/.env`)
-Copy the example and fill in your keys:
-```bash
-cp backend/.env.example backend/.env
-```
-
-Required values to set:
-```env
-PORT=5001
-MONGODB_URI=mongodb://localhost:27017/recursiadx
-JWT_SECRET=any-long-random-string
-ENCRYPTION_KEY=exactly-32-characters-here!!!!!
-ML_API_URL=http://localhost:5000
-OPENAI_API_KEY=sk-proj-your-openai-key-here
-```
-
-### Frontend (`client/.env`)
 Create `client/.env`:
 ```env
-VITE_API_URL=http://localhost:5001/api
-VITE_SERVER_URL=http://localhost:5001
+VITE_API_URL=http://localhost:5000/api
+VITE_SERVER_URL=http://localhost:5000
 ```
 
 ---
 
-## 3. Python ML Environment
+## 4. ML Setup (Python)
 
 ```bash
 cd ml
 python -m venv venv
+```
 
+**Activate the venv:**
+```bash
 # Windows
-.\venv\Scripts\activate
+.\venv\Scripts\Activate.ps1
 
 # Mac/Linux
 source venv/bin/activate
+```
 
+**Install dependencies:**
+```bash
 pip install -r requirements.txt
 ```
 
-> ⚠️ **PyTorch install**: If `pip install -r requirements.txt` fails for torch, install it separately first:
-> ```bash
-> pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
-> ```
-> Then run `pip install -r requirements.txt` again.
+> ⚠️ **TensorFlow Note**: `tensorflow==2.15.0` is required for the Brain Tumor model.
+> On machines with CUDA GPU, PyTorch will automatically use it for the Pneumonia model.
 
 ---
 
-## 4. Model Weights
+## 5. Model Weights
 
-The trained model files are **not in Git** (too large). You need:
+The trained model weights are stored in Git and will be downloaded automatically with `git clone`.
 
-| File | Size | Location |
-|------|------|----------|
-| `brain_tumor_efficientnetb3.h5` | 72 MB | `ml/models/weights/` |
-| `densenet121_best.pth` | 29 MB | `ml/pneumonia_detection/pneumonia_detection/models/` |
-| `efficientnet_b0_best.pth` | 18 MB | `ml/pneumonia_detection/pneumonia_detection/models/` |
+| Model | File | Location | Size |
+|-------|------|----------|------|
+| Brain Tumor (EfficientNetB3) | `brain_tumor_efficientnetb3.h5` | `ml/models/weights/` | ~72 MB |
+| Pneumonia DenseNet121 | `densenet121_best.pth` | `ml/pneumonia_detection/pneumonia_detection/models/` | ~29 MB |
+| Pneumonia EfficientNet-B0 | `efficientnet_b0_best.pth` | `ml/pneumonia_detection/pneumonia_detection/models/` | ~18 MB |
 
-**Get them from:** Share via Google Drive / USB from the original dev machine, or retrain using `ml/train_*.py` scripts.
+If the files are missing (slow connection / LFS issue), download from the team's shared Google Drive and place them in the paths above.
 
 ---
 
-## 5. MongoDB
+## 6. Start MongoDB
 
-Make sure MongoDB is running locally:
 ```bash
-# Windows (if installed as service)
+# Windows (if installed as a service, it may already be running)
 net start MongoDB
 
-# Or start manually
+# Or start manually:
 mongod --dbpath C:\data\db
 ```
 
 ---
 
-## 6. Start Everything
+## 7. Run Everything
 
-Open **4 terminals**:
+### Option A — One Command (Recommended)
 
-### Terminal 1 — ML Proxy (port 5000)
-```bash
-cd ml
-.\venv\Scripts\activate        # Windows
-python api/app.py --port 5000
+From the project root:
+```powershell
+.\start.ps1
 ```
 
-### Terminal 2 — Brain Tumor API (port 5002)
-```bash
-cd ml
-.\venv\Scripts\activate
-python api/brain_tumor_api.py --port 5002
-```
+This opens **5 separate terminal windows** automatically.
 
-### Terminal 3 — Pneumonia API (port 5003)
-```bash
-cd ml
-.\venv\Scripts\activate
-python api/pneumonia_api.py --port 5003
-```
+### Option B — Manual (5 separate terminals)
 
-### Terminal 4 — Backend (port 5001)
+**Terminal 1 — Backend:**
 ```bash
 cd backend
 npm run dev
 ```
 
-### Terminal 5 — Frontend (port 5173)
+**Terminal 2 — Frontend:**
 ```bash
 cd client
 npm run dev
 ```
 
-**Or use the PowerShell script** (Windows only):
-```powershell
+**Terminal 3 — ML Gateway:**
+```bash
 cd ml
-.\start_ml.ps1
+.\venv\Scripts\Activate.ps1   # Windows
+python api/app.py --port 5001
 ```
 
-Then open http://localhost:5173
+**Terminal 4 — Brain Tumor API:**
+```bash
+cd ml
+.\venv\Scripts\Activate.ps1
+python api/brain_tumor_api.py --port 5002
+```
+
+**Terminal 5 — Pneumonia API:**
+```bash
+cd ml
+.\venv\Scripts\Activate.ps1
+python api/pneumonia_api.py --port 5003
+```
 
 ---
 
-## 7. Quick Health Check
+## 8. Access the App
 
-After starting everything, verify:
-```
-http://localhost:5000/health  → ML Proxy
-http://localhost:5002/health  → Brain Tumor API
-http://localhost:5003/health  → Pneumonia API
-http://localhost:5001/api     → Backend
-http://localhost:5173         → Frontend
-```
+Open your browser at: **http://localhost:5173**
+
+Wait ~30 seconds after starting for all ML models to load into memory.
+
+---
+
+## Port Reference
+
+| Service | Port |
+|---------|------|
+| React Frontend | 5173 |
+| Node.js Backend | 5000 |
+| ML Gateway | 5001 |
+| Brain Tumor API | 5002 |
+| Pneumonia API | 5003 |
+| MongoDB | 27017 |
+
+---
+
+## Supported File Formats
+
+| Analysis Type | Supported Formats |
+|--------------|------------------|
+| Brain Tumor (MRI) | `.jpg`, `.jpeg`, `.png`, `.bmp` |
+| Pneumonia (Chest X-ray) | `.jpg`, `.jpeg`, `.png`, `.bmp`, `.dcm` (DICOM) |
 
 ---
 
 ## Troubleshooting
 
-| Error | Fix |
-|-------|-----|
-| `ML service not available` | Start all 3 Python APIs first |
-| `500 on upload` | Check ML services are running on correct ports |
-| `DICOM not displaying` | Python + pydicom must be installed; backend auto-converts |
-| `OpenAI report fails` | Set `OPENAI_API_KEY` in `backend/.env` |
-| `MongoDB connection error` | Start MongoDB service |
+### "ML Gateway unreachable on port 5001"
+→ Make sure `python api/app.py --port 5001` is running in the `ml/` directory with the venv activated.
 
----
+### "Pneumonia API is not running on port 5003"
+→ Start `python api/pneumonia_api.py --port 5003` in a separate terminal.
 
-## ⚠️ Not Cross-Platform (Mac/Linux)
+### "vite: command not found"
+→ Run `npm install` inside the `client/` directory.
 
-- `start_ml.ps1` is **Windows PowerShell only**
-- On Mac/Linux, start each Python service manually (same commands, use `source venv/bin/activate`)
-- All other code (Node.js, React) works cross-platform
+### Python `ModuleNotFoundError`
+→ Make sure the venv is activated before running Python files.
+
+### MongoDB connection error
+→ Start MongoDB: `net start MongoDB` (Windows) or `brew services start mongodb-community` (Mac).
