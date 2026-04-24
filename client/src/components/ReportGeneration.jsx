@@ -579,15 +579,23 @@ export function ReportGeneration({ sample, onNext }) {
 
                 {/* ── Imaging Panel: X-ray + Grad-CAM ─────────────────── */}
                 {(() => {
+                  const normalizeHeatmap = (raw) => {
+                    if (!raw) return null
+                    if (raw.startsWith('data:')) return raw
+                    if (raw.length > 100) return `data:image/png;base64,${raw}`
+                    return null
+                  }
+
                   const imgs = sample?.images || []
                   const panels = imgs
-                    .filter(img => img.url || img.heatmap?.base64)
                     .map((img, i) => ({
                       orig: img.url || null,
-                      heatmap: img.heatmap?.base64 || null,
+                      heatmap: normalizeHeatmap(img.heatmap?.base64 || img.heatmap?.heatmap_base64 || null),
                       filename: img.originalName || img.filename || `Image ${i + 1}`,
                       affectedPct: img.mlAnalysis?.affectedAreaPct ?? img.heatmap?.affectedAreaPct ?? null,
                     }))
+                    .filter(p => p.orig || p.heatmap)
+
                   if (panels.length === 0) return null
                   return (
                     <Card className="mb-6 border-indigo-200">
@@ -654,6 +662,7 @@ export function ReportGeneration({ sample, onNext }) {
                     </Card>
                   )
                 })()}
+
 
                 {/* Clinical Summary (Gemini) */}
                 <Card className="mb-6">

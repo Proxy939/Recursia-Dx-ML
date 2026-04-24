@@ -849,9 +849,32 @@ export function SampleUpload({ onNext, onSampleCreated }) {
                 const sample = mlResults?.data?.sample
                 const firstImage = sample?.images?.[0]
                 const analysis = firstImage?.mlAnalysis || {}
-                const heatmapB64 = firstImage?.heatmap?.base64 || null
+                const heatmapRaw = firstImage?.heatmap?.base64 ||
+                                   firstImage?.heatmap?.heatmap_base64 ||
+                                   sample?.analysis?.heatmap_base64 || null
+
+                // Normalize to a valid img src — handles plain base64, data URIs, or null
+                const normalizeHeatmap = (raw) => {
+                  if (!raw) return null
+                  if (raw.startsWith('data:')) return raw           // already a data URI
+                  if (raw.startsWith('/9j/') || raw.length > 100)  // looks like raw base64
+                    return `data:image/png;base64,${raw}`
+                  return null                                        // unrecognized — skip
+                }
+                const heatmapB64 = normalizeHeatmap(heatmapRaw)
+
+                // Debug: log what the backend actually returned (visible in browser console)
+                if (process.env.NODE_ENV !== 'production') {
+                  console.log('[Grad-CAM debug]', {
+                    heatmapRaw: heatmapRaw ? `${String(heatmapRaw).substring(0, 60)}…` : null,
+                    heatmapB64: heatmapB64 ? `${heatmapB64.substring(0, 60)}…` : null,
+                    firstImageKeys: firstImage ? Object.keys(firstImage) : [],
+                    heatmapObj: firstImage?.heatmap ? Object.keys(firstImage.heatmap) : null
+                  })
+                }
+
                 const origPreview = uploadedFiles?.[0]?.preview || null
-                const isPneumonia = sample?.imageType === 'pneumonia'
+                const isPneumonia = sample?.sampleType === 'Chest X-ray' || sample?.imageType === 'pneumonia'
 
                 // Real probabilities from model
                 const rawConf = analysis.confidence ?? 0
