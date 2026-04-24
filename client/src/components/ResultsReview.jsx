@@ -14,13 +14,16 @@ import {
   Stethoscope,
   Activity,
   MessageSquare,
-  Shield
+  Shield,
+  Eye,
+  Thermometer
 } from 'lucide-react'
 
 export function ResultsReview({ onNext, sample }) {
   const [approval, setApproval] = useState(null) // 'approved' | 'reanalysis' | null
   const [notes, setNotes] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [selectedHeatmapIdx, setSelectedHeatmapIdx] = useState(0)
 
   // Determine sample type
   const sampleType = sample?.sampleType || 'Brain MRI'
@@ -91,6 +94,17 @@ export function ResultsReview({ onNext, sample }) {
   }
 
   const analysisResults = getAnalysisResults()
+
+  // Extract Grad-CAM heatmaps stored by the upload pipeline
+  const heatmaps = (sample?.images || [])
+    .filter(img => img.heatmap?.base64)
+    .map((img, idx) => ({
+      idx,
+      filename: img.originalName || img.filename || `Image ${idx + 1}`,
+      base64: img.heatmap.base64,
+      type: img.heatmap.type || 'gradcam',
+      affectedAreaPct: img.mlAnalysis?.affectedAreaPct ?? null
+    }))
 
   // Handle submission
   const handleSubmit = () => {
@@ -248,6 +262,114 @@ export function ResultsReview({ onNext, sample }) {
           </div>
         </CardContent>
       </Card>
+
+      {/* ── Grad-CAM Heatmap Section ─────────────────────────────── */}
+      {heatmaps.length > 0 && (
+        <Card className="border-indigo-200">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-indigo-700">
+              <Eye className="h-5 w-5" />
+              Grad-CAM Heatmap Analysis
+              <Badge variant="outline" className="text-xs ml-2">
+                {heatmaps.length} image{heatmaps.length > 1 ? 's' : ''}
+              </Badge>
+            </CardTitle>
+            <CardDescription>
+              Gradient-weighted Class Activation Map — highlights regions the AI focused on most.
+              <span className="ml-1 font-medium text-red-600">Red/warm = high attention</span>
+              {' · '}
+              <span className="font-medium text-blue-600">Blue/cool = low attention</span>
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              {/* Main viewer */}
+              <div className="lg:col-span-2 flex flex-col items-center">
+                <div className="relative w-full rounded-xl overflow-hidden border-2 border-indigo-200 bg-black"
+                     style={{ maxHeight: '320px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <img
+                    src={heatmaps[selectedHeatmapIdx].base64}
+                    alt={`Grad-CAM heatmap for ${heatmaps[selectedHeatmapIdx].filename}`}
+                    className="object-contain"
+                    style={{ maxHeight: '320px', maxWidth: '100%' }}
+                  />
+                  <div className="absolute top-2 right-2">
+                    <Badge className="bg-indigo-700 text-white text-xs">
+                      {heatmaps[selectedHeatmapIdx].type?.toUpperCase() || 'GRAD-CAM'}
+                    </Badge>
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground mt-2 text-center">
+                  {heatmaps[selectedHeatmapIdx].filename}
+                  {heatmaps[selectedHeatmapIdx].affectedAreaPct !== null && (
+                    <span className="ml-2 font-semibold text-orange-600">
+                      · Affected area: {heatmaps[selectedHeatmapIdx].affectedAreaPct.toFixed(1)}%
+                    </span>
+                  )}
+                </p>
+              </div>
+
+              {/* Right panel: thumbnail strip + legend */}
+              <div className="flex flex-col gap-3">
+                {/* Thumbnail strip (only shown if >1 heatmap) */}
+                {heatmaps.length > 1 && (
+                  <div className="grid grid-cols-3 gap-2">
+                    {heatmaps.map((h, i) => (
+                      <button
+                        key={i}
+                        onClick={() => setSelectedHeatmapIdx(i)}
+                        className={`rounded-lg overflow-hidden border-2 transition-all ${
+                          i === selectedHeatmapIdx
+                            ? 'border-indigo-500 ring-2 ring-indigo-300'
+                            : 'border-gray-200 hover:border-indigo-300'
+                        }`}
+                      >
+                        <img src={h.base64} alt={`thumb ${i+1}`} className="w-full h-16 object-cover" />
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Color legend */}
+                <div className="p-3 rounded-lg bg-gray-50 border text-xs space-y-2">
+                  <div className="font-semibold text-gray-700 mb-1">Color Legend</div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 rounded" style={{ background: '#ff0000' }} />
+                    <span>High model attention (critical region)</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 rounded" style={{ background: '#ff8800' }} />
+                    <span>Moderate attention</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 rounded" style={{ background: '#ffff00' }} />
+                    <span>Low-moderate attention</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 rounded" style={{ background: '#0000ff' }} />
+                    <span>Minimal attention (background)</span>
+                  </div>
+                </div>
+
+                {/* Interpretation note */}
+                <div className={`p-3 rounded-lg border text-xs ${
+                  isPositive
+                    ? 'bg-red-50 border-red-200 text-red-800'
+                    : 'bg-green-50 border-green-200 text-green-800'
+                }`}>
+                  <div className="font-semibold mb-1">AI Interpretation</div>
+                  {isPositive
+                    ? isPneumonia
+                      ? 'Warm regions in lung fields are consistent with pulmonary opacification. Model attention aligns with pneumonia detection.'
+                      : 'Warm regions indicate suspected tumor-like features that elevated the model\'s classification score.'
+                    : 'Minimal warm regions — model attention is distributed normally, consistent with a negative prediction.'
+                  }
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Approval Section */}
       <Card>
